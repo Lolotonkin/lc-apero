@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo  # Force le fuseau horaire français
+from zoneinfo import ZoneInfo
 
 # 1. Configuration de la page pour mobile et ordinateur
 st.set_page_config(page_title="AlcooSuivi de Soirée", page_icon="🍻", layout="centered")
@@ -40,11 +40,12 @@ with st.form("profile_form", clear_on_submit=True):
 if submit_profile and pseudo:
     pseudo_clean = pseudo.strip()
     if pseudo_clean not in profiles:
+        heure_paris_naiv = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None)
         profiles[pseudo_clean] = {
             "sexe": sexe,
             "poids": poids,
             "drinks": [],
-            "created_at": datetime.now(ZoneInfo("Europe/Paris"))
+            "created_at": heure_paris_naiv
         }
         st.success(f"Profil de {pseudo_clean} créé !")
         st.rerun()
@@ -78,7 +79,7 @@ if profiles:
 
     if st.button(f"🍹 Ajouter ce verre à {selected_profile} maintenant"):
         alcool_g = volume * (degre / 100.0) * 0.8
-        heure_actuelle = datetime.now(ZoneInfo("Europe/Paris"))
+        heure_actuelle = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None)
         
         profiles[selected_profile]["drinks"].append({
             "time": heure_actuelle,
@@ -106,13 +107,11 @@ else:
             all_times.append(d["time"])
     
     start_time = min(all_times)
-    end_time = datetime.now(ZoneInfo("Europe/Paris")) + timedelta(hours=4)
+    end_time = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None) + timedelta(hours=4)
     
     total_minutes = max(1, int((end_time - start_time).total_seconds() / 60))
-    
     timeline_minutes = np.arange(0, total_minutes + 1)
     
-    # Création de la liste des vrais horaires basés sur l'heure de Paris
     timeline_dates = [start_time + timedelta(minutes=int(m)) for m in timeline_minutes]
     
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -143,7 +142,6 @@ else:
 
     ax.axhline(y=0.5, color='r', linestyle='--', label="Limite légale conduite (0.5 g/L)")
     
-    # Formatage de l'axe X
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     fig.autofmt_xdate()
     
@@ -166,9 +164,29 @@ col_qr1, col_qr2, col_qr3 = st.columns([1, 2, 1])
 with col_qr2:
     st.image(qr_api_url, caption="Scanne-moi pour rejoindre la session !", use_container_width=False)
 
-# --- SECTION 5 : RAZ DE LA SOIRÉE ---
+# --- SECTION 5 : RAZ DE LA SOIRÉE (AVEC CONFIRMATION) ---
 st.markdown("---")
-if st.button("🗑️ Réinitialiser la soirée (Effacer tous les profils)"):
-    profiles.clear()
-    st.success("La soirée a été remise à zéro !")
-    st.rerun()
+
+# Initialisation du système de sécurité si absent
+if "confirm_raz" not in st.session_state:
+    st.session_state.confirm_raz = False
+
+if not st.session_state.confirm_raz:
+    # Premier bouton d'alerte
+    if st.button("🗑️ Réinitialiser la soirée (Effacer tous les profils)"):
+        st.session_state.confirm_raz = True
+        st.rerun()
+else:
+    # Bloc de confirmation de sécurité
+    st.error("⚠️ **Es-tu sûr de vouloir tout effacer ?** Cette action supprimera définitivement tous les profils et tous les verres.")
+    col_oui, col_non = st.columns(2)
+    with col_oui:
+        if st.button("🔥 Oui, tout effacer", type="primary"):
+            profiles.clear()
+            st.session_state.confirm_raz = False
+            st.success("La soirée a été remise à zéro !")
+            st.rerun()
+    with col_non:
+        if st.button("❌ Non, annuler"):
+            st.session_state.confirm_raz = False
+            st.rerun()
