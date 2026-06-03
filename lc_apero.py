@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 # 1. Configuration de la page pour mobile et ordinateur
 st.set_page_config(page_title="Haggis & les cafards", page_icon="🍻", layout="centered")
 
-# --- DESIGN PERSONNALISÉ (MODE SOMBRE / PUB / BOUTONS CORRIGÉS) ---
+# --- DESIGN PERSONNALISÉ (CONTRASTE MAXIMAL POUR MODE SOMBRE) ---
 st.markdown("""
     <style>
     /* Fond général de l'application */
@@ -33,6 +33,24 @@ st.markdown("""
         padding: 20px;
     }
     
+    /* --- CORRECTION DES TEXTES FONCÉS (LISIBILITÉ LABELS ET INPUTS) --- */
+    /* Force la couleur de TOUS les labels/textes au-dessus des champs */
+    label, .stWidgetLabel, div[data-testid="stWidgetLabel"] p {
+        color: #f1f5f9 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Force le texte à l'intérieur des champs de saisie (Texte, Nombre, Selectbox) */
+    .stTextInput input, .stNumberInput input, div[data-baseweb="select"] {
+        color: #f1f5f9 !important;
+        background-color: #12141c !important;
+    }
+    
+    /* Sécurité pour le texte à l'intérieur des options sélectionnées */
+    div[data-testid="stSelectbox"] div[aria-live="polite"] {
+        color: #f1f5f9 !important;
+    }
+    
     /* Style pour les onglets */
     button[data-baseweb="tab"] {
         color: #94a3b8 !important;
@@ -42,12 +60,7 @@ st.markdown("""
         border-color: #ff9f1c !important;
     }
     
-    /* Inputs text et selectbox */
-    .stTextInput input, .stSelectbox, .stNumberInput input {
-        color: #f1f5f9 !important;
-    }
-    
-    /* --- CORRECTION DES BOUTONS (LISIBILITÉ MAXIMALE) --- */
+    /* --- CORRECTION DES BOUTONS --- */
     /* Boutons standards / secondaires (ex: Ajouter ce verre) */
     div.stButton > button {
         background-color: #1e2230 !important;
@@ -65,7 +78,7 @@ st.markdown("""
         border-color: #ff9f1c !important;
     }
     
-    /* Boutons de soumission de formulaires (ex: Valider le poids, Ajouter à la table) */
+    /* Boutons de soumission de formulaires (ex: Valider le poids) */
     div[data-testid="stFormSubmitButton"] > button, button[data-testid="baseButton-primary"] {
         background-color: #ff9f1c !important;
         color: #12141c !important;
@@ -209,7 +222,6 @@ else:
             t_drink = d["time"].replace(tzinfo=None) if hasattr(d["time"], "tzinfo") else d["time"]
             all_times.append(t_drink)
     
-    # Sécurité absolue contre le bug de soustraction datetime naive/aware
     start_time = min(all_times)
     if hasattr(start_time, "tzinfo") and start_time.tzinfo is not None:
         start_time = start_time.replace(tzinfo=None)
