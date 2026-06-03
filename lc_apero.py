@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates  # Importé pour formater les heures réelles
 from datetime import datetime, timedelta
 
 # 1. Configuration de la page pour mobile et ordinateur
@@ -13,8 +14,7 @@ st.subheader("Suivi multi-joueurs de l'alcoolémie en temps réel.")
 # --- CONFIGURATION DE TON LIEN ---
 A_PROPOS_URL = "https://lc-apero.streamlit.app"
 
-# --- MÉMOIRE GLOBALE ET PARTAGÉE (Le correctif !) ---
-# Cette fonction crée un dictionnaire unique partagé entre tous les utilisateurs et persistant
+# --- MÉMOIRE GLOBALE ET PARTAGÉE ---
 @st.cache_resource
 def get_shared_db():
     return {"profiles": {}}
@@ -110,7 +110,9 @@ else:
     total_minutes = max(1, int((end_time - start_time).total_seconds() / 60))
     
     timeline_minutes = np.arange(0, total_minutes + 1)
-    timeline_hours = timeline_minutes / 60.0
+    
+    # Création de la liste des vrais horaires pour l'axe X
+    timeline_dates = [start_time + timedelta(minutes=int(m)) for m in timeline_minutes]
     
     fig, ax = plt.subplots(figsize=(10, 5))
     elimination_par_minute = 0.15 / 60.0
@@ -136,10 +138,16 @@ else:
             
             bac_series.append(current_bac)
             
-        ax.plot(timeline_hours, bac_series, label=f"{name} (Max: {max(bac_series):.2f} g/L)", linewidth=2)
+        # Utilisation des vrais horaires sur l'axe X
+        ax.plot(timeline_dates, bac_series, label=f"{name} (Max: {max(bac_series):.2f} g/L)", linewidth=2)
 
     ax.axhline(y=0.5, color='r', linestyle='--', label="Limite légale conduite (0.5 g/L)")
-    ax.set_xlabel("Temps écoulé depuis le début (en heures)")
+    
+    # Formatage de l'axe X pour afficher l'heure réelle au format HH:MM
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    fig.autofmt_xdate()  # Incline légèrement les heures si elles se chevauchent sur mobile
+    
+    ax.set_xlabel("Heure réelle")
     ax.set_ylabel("Alcoolémie (g/L)")
     ax.set_ylim(bottom=0)
     ax.legend(loc="upper right")
@@ -164,3 +172,4 @@ if st.button("🗑️ Réinitialiser la soirée (Effacer tous les profils)"):
     profiles.clear()
     st.success("La soirée a été remise à zéro !")
     st.rerun()
+
