@@ -2,126 +2,159 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
-# Configuration de la page pour mobile
-st.set_page_config(page_title="AlcooSuivi", page_icon="🍻", layout="centered")
+# 1. Configuration de la page pour mobile et ordinateur
+st.set_page_config(page_title="AlcooSuivi de Soirée", page_icon="🍻", layout="centered")
 
 st.title("🍻 AlcooSuivi de Soirée")
-st.write("Suivi multi-joueurs de l'alcoolémie en temps réel.")
+st.subheader("Suivi multi-joueurs de l'alcoolémie en temps réel.")
 
-# Initialisation du dictionnaire des utilisateurs dans la session
-if "users" not in st.session_state:
-    st.session_state.users = {}
+# Initialisation de la mémoire de l'application
+if "profiles" not in st.session_state:
+    st.session_state.profiles = {}
 
 # --- SECTION 1 : GESTION DES PROFILS ---
 st.header("👥 1. Gestion des profils")
-with st.form("Ajouter un profil"):
-    name = st.text_input("Prénom / Pseudo").strip()
-    sex = st.selectbox("Sexe", ["Homme", "Femme"])
-    weight = st.number_input("Poids (kg)", min_value=30, max_value=200, value=70)
-    submit_user = st.form_submit_button("Créer le profil")
+
+with st.form("profile_form", clear_on_submit=True):
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        pseudo = st.text_input("Prénom / Pseudo")
+    with col2:
+        sexe = st.selectbox("Sexe", ["Homme", "Femme"])
+    with col3:
+        poids = st.number_input("Poids (kg)", min_value=30, max_value=200, value=70)
     
-    if submit_user and name:
-        if name not in st.session_state.users:
-            st.session_state.users[name] = {
-                "sex": sex,
-                "weight": weight,
-                "drinks": []  # Liste de dicts : {'minute': int, 'grams': float}
-            }
-            st.success(f"Profil de {name} ajouté !")
+    submit_profile = st.form_submit_button("Créer le profil")
+
+if submit_profile and pseudo:
+    pseudo_clean = pseudo.strip()
+    if pseudo_clean not in st.session_state.profiles:
+        st.session_state.profiles[pseudo_clean] = {
+            "sexe": sexe,
+            "poids": poids,
+            "drinks": [],
+            "created_at": datetime.now()
+        }
+        st.success(f"Profil de {pseudo_clean} créé !")
+    else:
+        st.warning(f"Le profil {pseudo_clean} existe déjà.")
+
+# --- SECTION 2 : ENREGISTRER UN VERRE ---
+if st.session_state.profiles:
+    st.header("🍹 2. Enregistrer un verre")
+    
+    # Sélection du joueur
+    selected_profile = st.selectbox("Qui boit ?", list(st.session_state.profiles.keys()))
+    
+    # Sélection de la boisson
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        type_boisson = st.selectbox(
+            "Type de boisson", 
+            ["Bière (25cl - 5%)", "Vin (12.5cl - 12%)", "Fort (4cl - 40%)", "Sur mesure"]
+        )
+    
+    with col_b2:
+        if type_boisson == "Sur mesure":
+            volume = st.number_input("Volume (ml)", min_value=1, value=250)
+            degre = st.number_input("Degré (%)", min_value=0.0, max_value=100.0, value=5.0)
         else:
-            st.warning("Ce pseudo existe déjà.")
+            if "Bière" in type_boisson:
+                volume, degre = 250, 5.0
+            elif "Vin" in type_boisson:
+                volume, degre = 125, 12.0
+            else:
+                volume, degre = 40, 40.0
 
-# Affichage des profils actifs
-if st.session_state.users:
-    st.write(f"Profils actifs : {', '.join(st.session_state.users.keys())}")
-else:
-    st.info("Ajoutez au moins un profil pour commencer.")
-
-# --- SECTION 2 : AJOUTER UN VERRE ---
-st.header("🍹 2. Enregistrer un verre")
-if st.session_state.users:
-    with st.form("Ajouter un verre"):
-        current_user = st.selectbox("Qui boit ?", list(st.session_state.users.keys()))
-        vol = st.number_input("Volume du verre (mL)", min_value=10, max_value=1000, value=250, step=10)
-        degree = st.number_input("Degré d'alcool (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.5)
-        time_min = st.number_input("Temps écoulé depuis le début de la soirée (minutes)", min_value=0, value=0, step=15)
-        submit_drink = st.form_submit_button("Santé ! 🥂")
+    # Bouton d'action instantané
+    if st.button(f"🍹 Ajouter ce verre à {selected_profile} maintenant"):
+        # Calcul de la masse d'alcool pur : Vol(ml) * (Degre/100) * 0.8 (densité de l'éthanol)
+        alcool_g = volume * (degre / 100.0) * 0.8
+        heure_actuelle = datetime.now()
         
-        if submit_drink:
-            # Calcul des grammes d'alcool pur
-            grams_alcohol = vol * (degree / 100.0) * 0.8
-            st.session_state.users[current_user]["drinks"].append({
-                "minute": time_min,
-                "grams": grams_alcohol
-            })
-            st.success(f"Verre enregistré pour {current_user} à T+{time_min} min.")
+        st.session_state.profiles[selected_profile]["drinks"].append({
+            "time": heure_actuelle,
+            "alcool_g": alcool_g,
+            "label": type_boisson
+        })
+        st.success(f"Verre ajouté à {heure_actuelle.strftime('%H:%M:%S')} !")
 
-# --- SECTION 3 : CALCULS ET GRAPHISME ---
+else:
+    st.info("Ajoutez au moins un profil ci-dessus pour commencer à enregistrer des verres.")
+
+# --- SECTION 3 : ÉVOLUTION DE L'ALCOOLÉMIE ---
 st.header("📈 3. Évolution de l'alcoolémie")
 
-SIMULATION_DURATION_HOURS = 10
-total_minutes = SIMULATION_DURATION_HOURS * 60
-timeline = np.arange(0, total_minutes, 5) # Calcul toutes les 5 minutes
+# Vérification si au moins un verre a été consommé dans toute la session
+has_drinks = any(len(p["drinks"]) > 0 for p in st.session_state.profiles.values())
 
-def compute_bac_timeline(user_data, total_mins):
-    r = 0.7 if user_data["sex"] == "Homme" else 0.6
-    weight = user_data["weight"]
-    elimination_per_minute = 0.15 / 60  # Décroissance de 0.15 g/L par heure
-    
-    bac_profile = np.zeros(total_mins)
-    
-    # On regroupe l'alcool apporté par minute
-    drinks_per_minute = {}
-    for d in user_data["drinks"]:
-        m = d["minute"]
-        drinks_per_minute[m] = drinks_per_minute.get(m, 0.0) + d["grams"]
-        
-    current_bac = 0.0
-    for m in range(total_mins):
-        # Absorption instantanée simplifiée (modèle de Widmark brut)
-        if m in drinks_per_minute:
-            current_bac += drinks_per_minute[m] / (weight * r)
-            
-        # Élimination par le foie
-        if current_bac > 0:
-            current_bac -= elimination_per_minute
-            if current_bac < 0:
-                current_bac = 0.0
-                
-        bac_profile[m] = current_bac
-    return bac_profile
-
-if st.session_state.users:
-    fig, ax = plt.subplots(figsize=(8, 4))
-    has_data = False
-    
-    for name, data in st.session_state.users.items():
-        if data["drinks"]:
-            has_data = True
-            bac_series = compute_bac_timeline(data, total_minutes)
-            # Conversion de la timeline en heures pour le graphique
-            ax.plot(timeline / 60.0, bac_series, label=name, linewidth=2)
-            
-            # Affichage du taux max actuel ou instantané
-            current_max = max(bac_series)
-            st.write(f"**{name}** : Taux maximum théorique atteint : `{current_max:.2f} g/L`")
-            
-    if has_data:
-        ax.axhline(y=0.5, color='r', linestyle='--', label='Limite légale (0.5 g/L)')
-        ax.set_xlabel("Temps (Heures depuis le début)")
-        ax.set_ylabel("Alcoolémie (g/L)")
-        ax.set_title("Évolution du taux d'alcoolémie")
-        ax.set_ylim(bottom=0)
-        ax.legend()
-        ax.grid(True, linestyle=':', alpha=0.6)
-        st.pyplot(fig)
-    else:
-        st.info("Aucun verre n'a encore été enregistré.")
+if not has_drinks:
+    st.info("Sélectionnez un profil et ajoutez un verre pour voir la simulation graphique.")
 else:
-    st.info("Créez des profils pour afficher le graphique.")
+    # Récupération de tous les repères de temps pour caler le graphique
+    all_times = []
+    for p in st.session_state.profiles.values():
+        all_times.append(p["created_at"])
+        for d in p["drinks"]:
+            all_times.append(d["time"])
+    
+    # Le graphique démarre au moment du tout premier événement de la soirée
+    start_time = min(all_times)
+    # Le graphique va jusqu'à maintenant + 4 heures pour anticiper la phase de dessalage
+    end_time = datetime.now() + timedelta(hours=4)
+    
+    # Calcul du nombre total de minutes à simuler
+    total_minutes = max(1, int((end_time - start_time).total_seconds() / 60))
+    
+    # Création des axes de temps parfaitement alignés
+    timeline_minutes = np.arange(0, total_minutes + 1)
+    timeline_hours = timeline_minutes / 60.0
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    
+    # Taux d'élimination moyen par minute (0.15 g/L par heure)
+    elimination_par_minute = 0.15 / 60.0
+    
+    # Calcul des courbes pour chaque profil
+    for name, p in st.session_state.profiles.items():
+        r = 0.7 if p["sexe"] == "Homme" else 0.6
+        poids = p["poids"]
+        
+        # Pré-calcul des minutes exactes où les verres ont été pris par rapport au point zéro
+        verres_minutes = []
+        for d in p["drinks"]:
+            minute_exacte = int((d["time"] - start_time).total_seconds() / 60)
+            verres_minutes.append((minute_exacte, d["alcool_g"]))
+            
+        bac_series = []
+        current_bac = 0.0
+        
+        # Simulation minute par minute
+        for m in timeline_minutes:
+            # 1. Ajout de l'alcool si un ou plusieurs verres ont été bus à cette minute exacte
+            for min_verre, alcool_g in verres_minutes:
+                if min_verre == m:
+                    current_bac += alcool_g / (poids * r)
+            
+            # 2. Élimination naturelle du foie
+            if current_bac > 0:
+                current_bac -= elimination_par_minute
+                if current_bac < 0:
+                    current_bac = 0.0
+            
+            bac_series.append(current_bac)
+            
+        # Affichage de la ligne sur le graphique (longueurs toujours identiques)
+        ax.plot(timeline_hours, bac_series, label=f"{name} (Max: {max(bac_series):.2f} g/L)", linewidth=2)
 
-# Bouton de réinitialisation
-if st.button("🔄 Réinitialiser la soirée"):
-    st.session_state.users = {}
-    st.rerun()
+    # Paramétrage visuel du graphique
+    ax.axhline(y=0.5, color='r', linestyle='--', label="Limite légale conduite (0.5 g/L)")
+    ax.set_xlabel("Temps écoulé depuis le début (en heures)")
+    ax.set_ylabel("Alcoolémie (g/L)")
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="upper right")
+    ax.grid(True, linestyle=':', alpha=0.6)
+    
+    st.pyplot(fig)
