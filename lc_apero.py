@@ -33,14 +33,13 @@ st.markdown("""
         padding: 20px;
     }
     
-    /* --- CORRECTION DES TEXTES FONCÉS (LISIBILITÉ LABELS ET INPUTS) --- */
     /* Force la couleur de TOUS les labels/textes au-dessus des champs */
     label, .stWidgetLabel, div[data-testid="stWidgetLabel"] p {
         color: #f1f5f9 !important;
         font-weight: 600 !important;
     }
     
-    /* Force le texte à l'intérieur des champs de saisie (Texte, Nombre, Selectbox) */
+    /* Force le texte à l'intérieur des champs de saisie */
     .stTextInput input, .stNumberInput input, div[data-baseweb="select"] {
         color: #f1f5f9 !important;
         background-color: #12141c !important;
@@ -61,7 +60,6 @@ st.markdown("""
     }
     
     /* --- CORRECTION DES BOUTONS --- */
-    /* Boutons standards / secondaires (ex: Ajouter ce verre) */
     div.stButton > button {
         background-color: #1e2230 !important;
         color: #ff9f1c !important;
@@ -78,7 +76,6 @@ st.markdown("""
         border-color: #ff9f1c !important;
     }
     
-    /* Boutons de soumission de formulaires (ex: Valider le poids) */
     div[data-testid="stFormSubmitButton"] > button, button[data-testid="baseButton-primary"] {
         background-color: #ff9f1c !important;
         color: #12141c !important;
@@ -286,16 +283,19 @@ else:
     
     st.pyplot(fig)
 
-# --- SECTION 4 : QR CODE D'INVITATION ---
+# --- SECTION 4 : PARTAGE ET INVITATIONS ---
 st.markdown("---")
 st.header("📢 4. Inviter des cafards à la table")
-st.write("Fais flasher ce QR Code pour qu'ils ajoutent leurs verres directement depuis leur téléphone ! ")
-
-qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={A_PROPOS_URL}"
+st.write("Fais flasher le QR Code ou copie le lien ci-dessous pour l'envoyer à tes potes (même ceux qui sont loin !) :")
 
 col_qr1, col_qr2, col_qr3 = st.columns([1, 2, 1])
 with col_qr2:
-    st.image(qr_api_url, caption="Scanne pour rejoindre Haggis et les cafards !", use_container_width=False)
+    qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={A_PROPOS_URL}"
+    st.image(qr_api_url, caption="Scanne pour rejoindre l'apéro !", use_container_width=False)
+
+# Champ avec bouton "Copier" automatique pour envoyer sur WhatsApp / Signal
+st.write("🔗 **Lien direct à copier :**")
+st.code(A_PROPOS_URL, language="text")
 
 # --- SECTION 5 : RAZ DE LA SOIRÉE (AVEC CONFIRMATION) ---
 st.markdown("---")
