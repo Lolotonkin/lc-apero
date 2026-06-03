@@ -11,12 +11,16 @@ st.title("🍻 AlcooSuivi de Soirée")
 st.subheader("Suivi multi-joueurs de l'alcoolémie en temps réel.")
 
 # --- CONFIGURATION DE TON LIEN ---
-# Vérifie bien que c'est le lien exact de ton application. Si besoin, modifie-le !
 A_PROPOS_URL = "https://lc-apero.streamlit.app"
 
-# Initialisation de la mémoire de l'application
-if "profiles" not in st.session_state:
-    st.session_state.profiles = {}
+# --- MÉMOIRE GLOBALE ET PARTAGÉE (Le correctif !) ---
+# Cette fonction crée un dictionnaire unique partagé entre tous les utilisateurs et persistant
+@st.cache_resource
+def get_shared_db():
+    return {"profiles": {}}
+
+shared_db = get_shared_db()
+profiles = shared_db["profiles"]
 
 # --- SECTION 1 : GESTION DES PROFILS ---
 st.header("👥 1. Gestion des profils")
@@ -34,25 +38,24 @@ with st.form("profile_form", clear_on_submit=True):
 
 if submit_profile and pseudo:
     pseudo_clean = pseudo.strip()
-    if pseudo_clean not in st.session_state.profiles:
-        st.session_state.profiles[pseudo_clean] = {
+    if pseudo_clean not in profiles:
+        profiles[pseudo_clean] = {
             "sexe": sexe,
             "poids": poids,
             "drinks": [],
             "created_at": datetime.now()
         }
         st.success(f"Profil de {pseudo_clean} créé !")
+        st.rerun()
     else:
         st.warning(f"Le profil {pseudo_clean} existe déjà.")
 
 # --- SECTION 2 : ENREGISTRER UN VERRE ---
-if st.session_state.profiles:
+if profiles:
     st.header("🍹 2. Enregistrer un verre")
     
-    # Sélection du joueur
-    selected_profile = st.selectbox("Qui boit ?", list(st.session_state.profiles.keys()))
+    selected_profile = st.selectbox("Qui boit ?", list(profiles.keys()))
     
-    # Sélection de la boisson
     col_b1, col_b2 = st.columns(2)
     with col_b1:
         type_boisson = st.selectbox(
@@ -72,17 +75,17 @@ if st.session_state.profiles:
             else:
                 volume, degre = 40, 40.0
 
-    # Bouton d'action instantané (prend l'heure actuelle "t")
     if st.button(f"🍹 Ajouter ce verre à {selected_profile} maintenant"):
         alcool_g = volume * (degre / 100.0) * 0.8
         heure_actuelle = datetime.now()
         
-        st.session_state.profiles[selected_profile]["drinks"].append({
+        profiles[selected_profile]["drinks"].append({
             "time": heure_actuelle,
             "alcool_g": alcool_g,
             "label": type_boisson
         })
         st.success(f"Verre ajouté à {heure_actuelle.strftime('%H:%M:%S')} !")
+        st.rerun()
 
 else:
     st.info("Ajoutez au moins un profil ci-dessus pour commencer à enregistrer des verres.")
@@ -90,13 +93,13 @@ else:
 # --- SECTION 3 : ÉVOLUTION DE L'ALCOOLÉMIE ---
 st.header("📈 3. Évolution de l'alcoolémie")
 
-has_drinks = any(len(p["drinks"]) > 0 for p in st.session_state.profiles.values())
+has_drinks = any(len(p["drinks"]) > 0 for p in profiles.values())
 
 if not has_drinks:
     st.info("Sélectionnez un profil et ajoutez un verre pour voir la simulation graphique.")
 else:
     all_times = []
-    for p in st.session_state.profiles.values():
+    for p in profiles.values():
         all_times.append(p["created_at"])
         for d in p["drinks"]:
             all_times.append(d["time"])
@@ -112,11 +115,10 @@ else:
     fig, ax = plt.subplots(figsize=(10, 5))
     elimination_par_minute = 0.15 / 60.0
     
-    for name, p in st.session_state.profiles.items():
+    for name, p in profiles.items():
         r = 0.7 if p["sexe"] == "Homme" else 0.6
         poids = p["poids"]
         
-        # Alignement parfait de la chronologie pour éviter le bug d'affichage
         verres_minutes = [(int((d["time"] - start_time).total_seconds() / 60), d["alcool_g"]) for d in p["drinks"]]
             
         bac_series = []
@@ -150,9 +152,15 @@ st.markdown("---")
 st.header("📢 4. Inviter des potes à la soirée")
 st.write("Fais flasher ce QR Code à tes amis pour qu'ils rejoignent l'application sur leur téléphone !")
 
-# Génération automatique du QR code
 qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={A_PROPOS_URL}"
 
 col_qr1, col_qr2, col_qr3 = st.columns([1, 2, 1])
 with col_qr2:
     st.image(qr_api_url, caption="Scanne-moi pour rejoindre la session !", use_container_width=False)
+
+# --- SECTION 5 : RAZ DE LA SOIRÉE ---
+st.markdown("---")
+if st.button("🗑️ Réinitialiser la soirée (Effacer tous les profils)"):
+    profiles.clear()
+    st.success("La soirée a été remise à zéro !")
+    st.rerun()
