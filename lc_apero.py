@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 # 1. Configuration de la page pour mobile et ordinateur
 st.set_page_config(page_title="Haggis & les cafards", page_icon="🍻", layout="centered")
 
-# --- DESIGN PERSONNALISÉ (MODE SOMBRE / PUB) ---
+# --- DESIGN PERSONNALISÉ (MODE SOMBRE / PUB / BOUTONS CORRIGÉS) ---
 st.markdown("""
     <style>
     /* Fond général de l'application */
@@ -17,12 +17,14 @@ st.markdown("""
         background-color: #12141c;
         color: #f1f5f9;
     }
+    
     /* Titres stylisés couleur ambre/bière */
     h1, h2, h3, h4 {
         color: #ff9f1c !important;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         font-weight: 700;
     }
+    
     /* Blocs de formulaires, onglets et sections */
     div[data-testid="stForm"], .stAlert, div[data-testid="stExpander"] {
         background-color: #1e2230 !important;
@@ -30,6 +32,7 @@ st.markdown("""
         border-radius: 12px !important;
         padding: 20px;
     }
+    
     /* Style pour les onglets */
     button[data-baseweb="tab"] {
         color: #94a3b8 !important;
@@ -38,13 +41,44 @@ st.markdown("""
         color: #ff9f1c !important;
         border-color: #ff9f1c !important;
     }
+    
     /* Inputs text et selectbox */
-    .stTextInput json, .stSelectbox, .stNumberInput {
-        color: #f1f5f9;
+    .stTextInput input, .stSelectbox, .stNumberInput input {
+        color: #f1f5f9 !important;
     }
-    /* Boutons */
-    .stButton>button {
-        border-radius: 8px;
+    
+    /* --- CORRECTION DES BOUTONS (LISIBILITÉ MAXIMALE) --- */
+    /* Boutons standards / secondaires (ex: Ajouter ce verre) */
+    div.stButton > button {
+        background-color: #1e2230 !important;
+        color: #ff9f1c !important;
+        border: 2px solid #ff9f1c !important;
+        border-radius: 8px !important;
+        font-weight: bold !important;
+        width: 100%;
+        padding: 10px 20px;
+        transition: all 0.2s ease-in-out;
+    }
+    div.stButton > button:hover {
+        background-color: #ff9f1c !important;
+        color: #12141c !important;
+        border-color: #ff9f1c !important;
+    }
+    
+    /* Boutons de soumission de formulaires (ex: Valider le poids, Ajouter à la table) */
+    div[data-testid="stFormSubmitButton"] > button, button[data-testid="baseButton-primary"] {
+        background-color: #ff9f1c !important;
+        color: #12141c !important;
+        border: 2px solid #ff9f1c !important;
+        border-radius: 8px !important;
+        font-weight: bold !important;
+        width: 100%;
+        padding: 10px 20px;
+    }
+    div[data-testid="stFormSubmitButton"] > button:hover, button[data-testid="baseButton-primary"]:hover {
+        background-color: #e08a12 !important;
+        border-color: #e08a12 !important;
+        color: #12141c !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -55,11 +89,10 @@ st.subheader("AlcooSuivi officiel de la bande en temps réel.")
 # --- CONFIGURATION DE TON LIEN ---
 A_PROPOS_URL = "https://lc-apero.streamlit.app"
 
-# --- MÉMOIRE GLOBALE ET PARTAGÉE (AVEC LES 4 PROFILS PAR DÉFAUT) ---
+# --- MÉMOIRE GLOBALE ET PARTAGÉE ---
 @st.cache_resource
 def get_shared_db():
     heure_paris_naiv = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None)
-    # Pré-population automatique avec un poids par défaut de 75kg à ajuster
     default_profiles = {
         "Lolo'": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv},
         "Poum's": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv},
@@ -71,7 +104,7 @@ def get_shared_db():
 shared_db = get_shared_db()
 profiles = shared_db["profiles"]
 
-# --- SECTION 1 : GESTION DES PROFILS (AVEC ONGLETS) ---
+# --- SECTION 1 : GESTION DES PROFILS ---
 st.header("👥 1. Configuration de l'équipe")
 
 tab_Ajuster, tab_Ajouter = st.tabs(["✏️ Ajuster les poids (La Bande)", "➕ Ajouter un invité"])
@@ -170,13 +203,17 @@ if not has_drinks:
 else:
     all_times = []
     for p in profiles.values():
-        t_created = p["created_at"].replace(tzinfo=None) if p["created_at"].tzinfo is not None else p["created_at"]
+        t_created = p["created_at"].replace(tzinfo=None) if hasattr(p["created_at"], "tzinfo") else p["created_at"]
         all_times.append(t_created)
         for d in p["drinks"]:
-            t_drink = d["time"].replace(tzinfo=None) if d["time"].tzinfo is not None else d["time"]
+            t_drink = d["time"].replace(tzinfo=None) if hasattr(d["time"], "tzinfo") else d["time"]
             all_times.append(t_drink)
     
+    # Sécurité absolue contre le bug de soustraction datetime naive/aware
     start_time = min(all_times)
+    if hasattr(start_time, "tzinfo") and start_time.tzinfo is not None:
+        start_time = start_time.replace(tzinfo=None)
+        
     end_time = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None) + timedelta(hours=4)
     
     total_minutes = max(1, int((end_time - start_time).total_seconds() / 60))
@@ -194,7 +231,7 @@ else:
         
         verres_minutes = []
         for d in p["drinks"]:
-            t_drink = d["time"].replace(tzinfo=None) if d["time"].tzinfo is not None else d["time"]
+            t_drink = d["time"].replace(tzinfo=None) if hasattr(d["time"], "tzinfo") else d["time"]
             min_verre = int((t_drink - start_time).total_seconds() / 60)
             verres_minutes.append((min_verre, d["alcool_g"]))
             
