@@ -10,6 +10,10 @@ st.set_page_config(page_title="AlcooSuivi de Soirée", page_icon="🍻", layout=
 st.title("🍻 AlcooSuivi de Soirée")
 st.subheader("Suivi multi-joueurs de l'alcoolémie en temps réel.")
 
+# --- CONFIGURATION DE TON LIEN ---
+# Vérifie bien que c'est le lien exact de ton application. Si besoin, modifie-le !
+A_PROPOS_URL = "https://lc-apero.streamlit.app"
+
 # Initialisation de la mémoire de l'application
 if "profiles" not in st.session_state:
     st.session_state.profiles = {}
@@ -68,9 +72,8 @@ if st.session_state.profiles:
             else:
                 volume, degre = 40, 40.0
 
-    # Bouton d'action instantané
+    # Bouton d'action instantané (prend l'heure actuelle "t")
     if st.button(f"🍹 Ajouter ce verre à {selected_profile} maintenant"):
-        # Calcul de la masse d'alcool pur : Vol(ml) * (Degre/100) * 0.8 (densité de l'éthanol)
         alcool_g = volume * (degre / 100.0) * 0.8
         heure_actuelle = datetime.now()
         
@@ -87,58 +90,43 @@ else:
 # --- SECTION 3 : ÉVOLUTION DE L'ALCOOLÉMIE ---
 st.header("📈 3. Évolution de l'alcoolémie")
 
-# Vérification si au moins un verre a été consommé dans toute la session
 has_drinks = any(len(p["drinks"]) > 0 for p in st.session_state.profiles.values())
 
 if not has_drinks:
     st.info("Sélectionnez un profil et ajoutez un verre pour voir la simulation graphique.")
 else:
-    # Récupération de tous les repères de temps pour caler le graphique
     all_times = []
     for p in st.session_state.profiles.values():
         all_times.append(p["created_at"])
         for d in p["drinks"]:
             all_times.append(d["time"])
     
-    # Le graphique démarre au moment du tout premier événement de la soirée
     start_time = min(all_times)
-    # Le graphique va jusqu'à maintenant + 4 heures pour anticiper la phase de dessalage
     end_time = datetime.now() + timedelta(hours=4)
     
-    # Calcul du nombre total de minutes à simuler
     total_minutes = max(1, int((end_time - start_time).total_seconds() / 60))
     
-    # Création des axes de temps parfaitement alignés
     timeline_minutes = np.arange(0, total_minutes + 1)
     timeline_hours = timeline_minutes / 60.0
     
     fig, ax = plt.subplots(figsize=(10, 5))
-    
-    # Taux d'élimination moyen par minute (0.15 g/L par heure)
     elimination_par_minute = 0.15 / 60.0
     
-    # Calcul des courbes pour chaque profil
     for name, p in st.session_state.profiles.items():
         r = 0.7 if p["sexe"] == "Homme" else 0.6
         poids = p["poids"]
         
-        # Pré-calcul des minutes exactes où les verres ont été pris par rapport au point zéro
-        verres_minutes = []
-        for d in p["drinks"]:
-            minute_exacte = int((d["time"] - start_time).total_seconds() / 60)
-            verres_minutes.append((minute_exacte, d["alcool_g"]))
+        # Alignement parfait de la chronologie pour éviter le bug d'affichage
+        verres_minutes = [(int((d["time"] - start_time).total_seconds() / 60), d["alcool_g"]) for d in p["drinks"]]
             
         bac_series = []
         current_bac = 0.0
         
-        # Simulation minute par minute
         for m in timeline_minutes:
-            # 1. Ajout de l'alcool si un ou plusieurs verres ont été bus à cette minute exacte
             for min_verre, alcool_g in verres_minutes:
                 if min_verre == m:
                     current_bac += alcool_g / (poids * r)
             
-            # 2. Élimination naturelle du foie
             if current_bac > 0:
                 current_bac -= elimination_par_minute
                 if current_bac < 0:
@@ -146,10 +134,8 @@ else:
             
             bac_series.append(current_bac)
             
-        # Affichage de la ligne sur le graphique (longueurs toujours identiques)
         ax.plot(timeline_hours, bac_series, label=f"{name} (Max: {max(bac_series):.2f} g/L)", linewidth=2)
 
-    # Paramétrage visuel du graphique
     ax.axhline(y=0.5, color='r', linestyle='--', label="Limite légale conduite (0.5 g/L)")
     ax.set_xlabel("Temps écoulé depuis le début (en heures)")
     ax.set_ylabel("Alcoolémie (g/L)")
@@ -158,3 +144,15 @@ else:
     ax.grid(True, linestyle=':', alpha=0.6)
     
     st.pyplot(fig)
+
+# --- SECTION 4 : QR CODE D'INVITATION ---
+st.markdown("---")
+st.header("📢 4. Inviter des potes à la soirée")
+st.write("Fais flasher ce QR Code à tes amis pour qu'ils rejoignent l'application sur leur téléphone !")
+
+# Génération automatique du QR code
+qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={A_PROPOS_URL}"
+
+col_qr1, col_qr2, col_qr3 = st.columns([1, 2, 1])
+with col_qr2:
+    st.image(qr_api_url, caption="Scanne-moi pour rejoindre la session !", use_container_width=False)
