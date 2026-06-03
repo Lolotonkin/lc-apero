@@ -102,9 +102,12 @@ if not has_drinks:
 else:
     all_times = []
     for p in profiles.values():
-        all_times.append(p["created_at"])
+        # Sécurité : on nettoie les anciennes dates stockées dans le cache de l'application
+        t_created = p["created_at"].replace(tzinfo=None) if p["created_at"].tzinfo is not None else p["created_at"]
+        all_times.append(t_created)
         for d in p["drinks"]:
-            all_times.append(d["time"])
+            t_drink = d["time"].replace(tzinfo=None) if d["time"].tzinfo is not None else d["time"]
+            all_times.append(t_drink)
     
     start_time = min(all_times)
     end_time = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None) + timedelta(hours=4)
@@ -121,7 +124,12 @@ else:
         r = 0.7 if p["sexe"] == "Homme" else 0.6
         poids = p["poids"]
         
-        verres_minutes = [(int((d["time"] - start_time).total_seconds() / 60), d["alcool_g"]) for d in p["drinks"]]
+        # Sécurité ici aussi pour le calcul des écarts de temps
+        verres_minutes = []
+        for d in p["drinks"]:
+            t_drink = d["time"].replace(tzinfo=None) if d["time"].tzinfo is not None else d["time"]
+            min_verre = int((t_drink - start_time).total_seconds() / 60)
+            verres_minutes.append((min_verre, d["alcool_g"]))
             
         bac_series = []
         current_bac = 0.0
@@ -167,17 +175,14 @@ with col_qr2:
 # --- SECTION 5 : RAZ DE LA SOIRÉE (AVEC CONFIRMATION) ---
 st.markdown("---")
 
-# Initialisation du système de sécurité si absent
 if "confirm_raz" not in st.session_state:
     st.session_state.confirm_raz = False
 
 if not st.session_state.confirm_raz:
-    # Premier bouton d'alerte
     if st.button("🗑️ Réinitialiser la soirée (Effacer tous les profils)"):
         st.session_state.confirm_raz = True
         st.rerun()
 else:
-    # Bloc de confirmation de sécurité
     st.error("⚠️ **Es-tu sûr de vouloir tout effacer ?** Cette action supprimera définitivement tous les profils et tous les verres.")
     col_oui, col_non = st.columns(2)
     with col_oui:
