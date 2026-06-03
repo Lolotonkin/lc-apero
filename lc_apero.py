@@ -96,8 +96,8 @@ st.markdown("""
 st.title("🍻 Haggis et les cafards (et les amis) 🪳")
 st.subheader("AlcooSuivi officiel de la bande en temps réel.")
 
-# --- CONFIGURATION DE TON LIEN ---
-A_PROPOS_URL = "https://lc-apero.streamlit.app"
+# --- CONFIGURATION DE TON LIEN PUBLIC DÉFINITIF ---
+A_PROPOS_URL = "https://lc-apero-eqdne2pvte4wak5sawi8kf.streamlit.app"
 
 # --- MÉMOIRE GLOBALE ET PARTAGÉE ---
 @st.cache_resource
