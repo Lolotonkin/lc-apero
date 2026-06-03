@@ -7,56 +7,127 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 # 1. Configuration de la page pour mobile et ordinateur
-st.set_page_config(page_title="AlcooSuivi de Soirée", page_icon="🍻", layout="centered")
+st.set_page_config(page_title="Haggis & les cafards", page_icon="🍻", layout="centered")
 
-st.title("🍻 AlcooSuivi de Soirée")
-st.subheader("Suivi multi-joueurs de l'alcoolémie en temps réel.")
+# --- DESIGN PERSONNALISÉ (MODE SOMBRE / PUB) ---
+st.markdown("""
+    <style>
+    /* Fond général de l'application */
+    .stApp {
+        background-color: #12141c;
+        color: #f1f5f9;
+    }
+    /* Titres stylisés couleur ambre/bière */
+    h1, h2, h3, h4 {
+        color: #ff9f1c !important;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-weight: 700;
+    }
+    /* Blocs de formulaires, onglets et sections */
+    div[data-testid="stForm"], .stAlert, div[data-testid="stExpander"] {
+        background-color: #1e2230 !important;
+        border: 1px solid #2d3446 !important;
+        border-radius: 12px !important;
+        padding: 20px;
+    }
+    /* Style pour les onglets */
+    button[data-baseweb="tab"] {
+        color: #94a3b8 !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #ff9f1c !important;
+        border-color: #ff9f1c !important;
+    }
+    /* Inputs text et selectbox */
+    .stTextInput json, .stSelectbox, .stNumberInput {
+        color: #f1f5f9;
+    }
+    /* Boutons */
+    .stButton>button {
+        border-radius: 8px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("🍻 Haggis et les cafards (et les amis) 🪳")
+st.subheader("AlcooSuivi officiel de la bande en temps réel.")
 
 # --- CONFIGURATION DE TON LIEN ---
 A_PROPOS_URL = "https://lc-apero.streamlit.app"
 
-# --- MÉMOIRE GLOBALE ET PARTAGÉE ---
+# --- MÉMOIRE GLOBALE ET PARTAGÉE (AVEC LES 4 PROFILS PAR DÉFAUT) ---
 @st.cache_resource
 def get_shared_db():
-    return {"profiles": {}}
+    heure_paris_naiv = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None)
+    # Pré-population automatique avec un poids par défaut de 75kg à ajuster
+    default_profiles = {
+        "Lolo'": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv},
+        "Poum's": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv},
+        "Nico'": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv},
+        "Duj'": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv}
+    }
+    return {"profiles": default_profiles}
 
 shared_db = get_shared_db()
 profiles = shared_db["profiles"]
 
-# --- SECTION 1 : GESTION DES PROFILS ---
-st.header("👥 1. Gestion des profils")
+# --- SECTION 1 : GESTION DES PROFILS (AVEC ONGLETS) ---
+st.header("👥 1. Configuration de l'équipe")
 
-with st.form("profile_form", clear_on_submit=True):
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        pseudo = st.text_input("Prénom / Pseudo")
-    with col2:
-        sexe = st.selectbox("Sexe", ["Homme", "Femme"])
-    with col3:
-        poids = st.number_input("Poids (kg)", min_value=30, max_value=200, value=70)
-    
-    submit_profile = st.form_submit_button("Créer le profil")
+tab_Ajuster, tab_Ajouter = st.tabs(["✏️ Ajuster les poids (La Bande)", "➕ Ajouter un invité"])
 
-if submit_profile and pseudo:
-    pseudo_clean = pseudo.strip()
-    if pseudo_clean not in profiles:
-        heure_paris_naiv = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None)
-        profiles[pseudo_clean] = {
-            "sexe": sexe,
-            "poids": poids,
-            "drinks": [],
-            "created_at": heure_paris_naiv
-        }
-        st.success(f"Profil de {pseudo_clean} créé !")
-        st.rerun()
-    else:
-        st.warning(f"Le profil {pseudo_clean} existe déjà.")
+with tab_Ajuster:
+    if profiles:
+        target_profile = st.selectbox("Qui veux-tu peser ?", list(profiles.keys()))
+        
+        with st.form(f"edit_form_{target_profile}"):
+            col_e1, col_e2 = st.columns(2)
+            with col_e1:
+                poids_actuel = int(profiles[target_profile]["poids"])
+                new_poids = st.number_input(f"Vrai poids de {target_profile} (kg)", min_value=30, max_value=200, value=poids_actuel)
+            with col_e2:
+                sexe_actuel = profiles[target_profile]["sexe"]
+                sexe_idx = 0 if sexe_actuel == "Homme" else 1
+                new_sexe = st.selectbox(f"Sexe de {target_profile}", ["Homme", "Femme"], index=sexe_idx)
+            
+            if st.form_submit_button(f"💾 Valider le poids de {target_profile}"):
+                profiles[target_profile]["poids"] = new_poids
+                profiles[target_profile]["sexe"] = new_sexe
+                st.success(f"Poids mis à jour : {target_profile} fait maintenant {new_poids} kg !")
+                st.rerun()
+
+with tab_Ajouter:
+    with st.form("profile_form", clear_on_submit=True):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            pseudo = st.text_input("Prénom / Pseudo de l'invité")
+        with col2:
+            sexe = st.selectbox("Sexe", ["Homme", "Femme"])
+        with col3:
+            poids = st.number_input("Poids (kg)", min_value=30, max_value=200, value=75)
+        
+        submit_profile = st.form_submit_button("➕ Ajouter à la table")
+
+    if submit_profile and pseudo:
+        pseudo_clean = pseudo.strip()
+        if pseudo_clean not in profiles:
+            heure_paris_naiv = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None)
+            profiles[pseudo_clean] = {
+                "sexe": sexe,
+                "poids": poids,
+                "drinks": [],
+                "created_at": heure_paris_naiv
+            }
+            st.success(f"Bienvenue à la soirée, {pseudo_clean} !")
+            st.rerun()
+        else:
+            st.warning(f"Le profil {pseudo_clean} est déjà de la partie.")
 
 # --- SECTION 2 : ENREGISTRER UN VERRE ---
 if profiles:
     st.header("🍹 2. Enregistrer un verre")
     
-    selected_profile = st.selectbox("Qui boit ?", list(profiles.keys()))
+    selected_profile = st.selectbox("Qui trinque ?", list(profiles.keys()))
     
     col_b1, col_b2 = st.columns(2)
     with col_b1:
@@ -86,23 +157,19 @@ if profiles:
             "alcool_g": alcool_g,
             "label": type_boisson
         })
-        st.success(f"Verre ajouté à {heure_actuelle.strftime('%H:%M:%S')} !")
+        st.success(f"Santé {selected_profile} ! Verre enregistré à {heure_actuelle.strftime('%H:%M:%S')}.")
         st.rerun()
 
-else:
-    st.info("Ajoutez au moins un profil ci-dessus pour commencer à enregistrer des verres.")
-
 # --- SECTION 3 : ÉVOLUTION DE L'ALCOOLÉMIE ---
-st.header("📈 3. Évolution de l'alcoolémie")
+st.header("📈 3. État de la bande (Évolution graphique)")
 
 has_drinks = any(len(p["drinks"]) > 0 for p in profiles.values())
 
 if not has_drinks:
-    st.info("Sélectionnez un profil et ajoutez un verre pour voir la simulation graphique.")
+    st.info("Aucun verre enregistré pour le moment. Servez le premier coup pour lancer le graphique !")
 else:
     all_times = []
     for p in profiles.values():
-        # Sécurité : on nettoie les anciennes dates stockées dans le cache de l'application
         t_created = p["created_at"].replace(tzinfo=None) if p["created_at"].tzinfo is not None else p["created_at"]
         all_times.append(t_created)
         for d in p["drinks"]:
@@ -117,14 +184,14 @@ else:
     
     timeline_dates = [start_time + timedelta(minutes=int(m)) for m in timeline_minutes]
     
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(10, 5), facecolor='#12141c')
+    ax.set_facecolor('#1e2230')
     elimination_par_minute = 0.15 / 60.0
     
     for name, p in profiles.items():
         r = 0.7 if p["sexe"] == "Homme" else 0.6
         poids = p["poids"]
         
-        # Sécurité ici aussi pour le calcul des écarts de temps
         verres_minutes = []
         for d in p["drinks"]:
             t_drink = d["time"].replace(tzinfo=None) if d["time"].tzinfo is not None else d["time"]
@@ -145,32 +212,41 @@ else:
                     current_bac = 0.0
             
             bac_series.append(current_bac)
-            
-        ax.plot(timeline_dates, bac_series, label=f"{name} (Max: {max(bac_series):.2f} g/L)", linewidth=2)
+        
+        if max(bac_series) > 0 or name == "Lolo'":
+            ax.plot(timeline_dates, bac_series, label=f"{name} ({poids}kg - Max: {max(bac_series):.2f} g/L)", linewidth=2.5)
 
-    ax.axhline(y=0.5, color='r', linestyle='--', label="Limite légale conduite (0.5 g/L)")
+    ax.axhline(y=0.5, color='#ef4444', linestyle='--', label="Limite conduite (0.5 g/L)", linewidth=2)
     
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
     fig.autofmt_xdate()
     
-    ax.set_xlabel("Heure réelle (Paris)")
-    ax.set_ylabel("Alcoolémie (g/L)")
+    ax.set_xlabel("Heure réelle", color='#94a3b8')
+    ax.set_ylabel("Alcoolémie (g/L)", color='#94a3b8')
+    ax.tick_params(colors='#94a3b8', which='both')
     ax.set_ylim(bottom=0)
-    ax.legend(loc="upper right")
-    ax.grid(True, linestyle=':', alpha=0.6)
+    
+    for spine in ax.spines.values():
+        spine.set_color('#2d3446')
+        
+    legend = ax.legend(loc="upper right", facecolor='#12141c', edgecolor='#2d3446')
+    for text in legend.get_texts():
+        text.set_color('#f1f5f9')
+        
+    ax.grid(True, linestyle=':', alpha=0.15, color='#94a3b8')
     
     st.pyplot(fig)
 
 # --- SECTION 4 : QR CODE D'INVITATION ---
 st.markdown("---")
-st.header("📢 4. Inviter des potes à la soirée")
-st.write("Fais flasher ce QR Code à tes amis pour qu'ils rejoignent l'application sur leur téléphone !")
+st.header("📢 4. Inviter des cafards à la table")
+st.write("Fais flasher ce QR Code pour qu'ils ajoutent leurs verres directement depuis leur téléphone ! ")
 
 qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data={A_PROPOS_URL}"
 
 col_qr1, col_qr2, col_qr3 = st.columns([1, 2, 1])
 with col_qr2:
-    st.image(qr_api_url, caption="Scanne-moi pour rejoindre la session !", use_container_width=False)
+    st.image(qr_api_url, caption="Scanne pour rejoindre Haggis et les cafards !", use_container_width=False)
 
 # --- SECTION 5 : RAZ DE LA SOIRÉE (AVEC CONFIRMATION) ---
 st.markdown("---")
@@ -179,17 +255,25 @@ if "confirm_raz" not in st.session_state:
     st.session_state.confirm_raz = False
 
 if not st.session_state.confirm_raz:
-    if st.button("🗑️ Réinitialiser la soirée (Effacer tous les profils)"):
+    if st.button("🗑️ Réinitialiser la soirée (Vider les verres)"):
         st.session_state.confirm_raz = True
         st.rerun()
 else:
-    st.error("⚠️ **Es-tu sûr de vouloir tout effacer ?** Cette action supprimera définitivement tous les profils et tous les verres.")
+    st.error("⚠️ **Es-tu sûr de vouloir tout effacer ?** Tous les verres seront supprimés, mais l'équipe de base (Lolo', Poum's, Nico', Duj') restera prête pour le prochain round.")
     col_oui, col_non = st.columns(2)
     with col_oui:
-        if st.button("🔥 Oui, tout effacer", type="primary"):
+        if st.button("🔥 Oui, nettoyer la table", type="primary"):
             profiles.clear()
+            heure_paris_naiv = datetime.now(ZoneInfo("Europe/Paris")).replace(tzinfo=None)
+            for name, info in {
+                "Lolo'": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv},
+                "Poum's": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv},
+                "Nico'": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv},
+                "Duj'": {"sexe": "Homme", "poids": 75, "drinks": [], "created_at": heure_paris_naiv}
+            }.items():
+                profiles[name] = info
             st.session_state.confirm_raz = False
-            st.success("La soirée a été remise à zéro !")
+            st.success("C'est propre ! Prêts pour une nouvelle session.")
             st.rerun()
     with col_non:
         if st.button("❌ Non, annuler"):
