@@ -193,42 +193,30 @@ if st.button("🗑️ Remise à zéro totale (Supprimer tout)"):
 st.header("📊 3. Évolution des courbes d'alcoolémie")
 
 if boissons_nuageuses:
-    # Conversion en UTC puis conversion immédiate en heure de Paris
+    # 1. Nettoyage et harmonisation des fuseaux horaires
+    def clean_tz(series):
+        dt = pd.to_datetime(series)
+        if dt.dt.tz is None:
+            dt = dt.dt.tz_localize('UTC')
+        return dt.dt.tz_convert('Europe/Paris')
+
     df_verres = pd.DataFrame(boissons_nuageuses)
-    df_verres['created_at'] = pd.to_datetime(df_verres['created_at']).dt.tz_localize('UTC').dt.tz_convert('Europe/Paris')
+    df_verres['created_at'] = clean_tz(df_verres['created_at'])
     
     df_repas = pd.DataFrame(repas_nuage) if repas_nuage else pd.DataFrame(columns=['pseudo', 'created_at'])
     if not df_repas.empty:
-        df_repas['created_at'] = pd.to_datetime(df_repas['created_at']).dt.tz_localize('UTC').dt.tz_convert('Europe/Paris')
-
- # 1. Conversion sécurisée des dates (gestion UTC vs Paris)
-    def clean_tz(series):
-        dt = pd.to_datetime(series)
-        # Si la série est "naive" (sans fuseau), on la définit comme UTC
-        if dt.dt.tz is None:
-            dt = dt.dt.tz_localize('UTC')
-        # On convertit en Paris
-        return dt.dt.tz_convert('Europe/Paris')
-
-    df_verres['created_at'] = clean_tz(df_verres['created_at'])
-    if not df_repas.empty:
         df_repas['created_at'] = clean_tz(df_repas['created_at'])
 
-    # 2. Définition de la fenêtre glissante en heure de Paris
+    # 2. Fenêtre glissante (Paris)
     maintenant = pd.Timestamp.now(tz='Europe/Paris')
     premier_verre = df_verres['created_at'].min()
     
-    # Début : soit le premier verre, soit 2h avant maintenant
     debut_suivi = max(premier_verre, maintenant - pd.Timedelta(hours=2))
-    # Fin : maintenant + 6h de projection
     fin_suivi = maintenant + pd.Timedelta(hours=6)
     
     axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min', tz='Europe/Paris')
     
-    # --- FIN DE LA CORRECTION ---
-    
-    # ... le reste du code de calcul suit ici ...
-    
+    # 3. Calcul des courbes
     df_graphique = pd.DataFrame(index=axe_temps)
     
     for nom, info in profils.items():
