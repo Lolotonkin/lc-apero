@@ -268,5 +268,19 @@ if boissons_nuageuses:
     st.subheader("📋 Historique des entrées")
     st.dataframe(df_verres[['pseudo', 'boisson', 'alcool_g', 'created_at']].tail(10))
 
+# --- SECTION ADMINISTRATION ---
+    st.divider()
+    with st.expander("⚙️ Administration"):
+        mdp = st.text_input("Mot de passe pour réinitialiser la soirée", type="password")
+        
+        if st.button("🚨 TOUT EFFACER (Données)"):
+            if mdp == "lolo":
+                # Suppression de toutes les données dans Supabase
+                supabase.table("drinks").delete().neq("id", 0).execute()
+                supabase.table("repas").delete().neq("id", 0).execute()
+                st.success("La base a été remise à zéro.")
+                st.rerun()
+            else:
+                st.error("Mot de passe incorrect.")
 else:
     st.info("Aucune donnée disponible. Ajoutez une consommation pour générer les graphiques d'absorption.")
