@@ -7,19 +7,33 @@ import qrcode
 from PIL import Image
 import io
 import plotly.graph_objects as go
+import urllib.parse
 
-# --- CONFIGURATION INITIALE & THÈME ---
+# --- CONFIGURATION INITIALE & THÈME HAUT CONTRASTE ---
 st.set_page_config(page_title="Haggis et les cafards 🪳", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
+    /* Thème général sombre */
     .stApp { background-color: #000000 !important; color: #FFFFFF !important; }
     h1, h2, h3, p, span, label, div.stMarkdown { color: #FFFFFF !important; }
     h1, h2 { color: #FF9800 !important; font-weight: bold !important; }
+    
+    /* Boutons et Inputs */
     .stButton>button { background-color: #FF9800 !important; color: #000000 !important; font-weight: bold !important; border: 2px solid #FFFFFF !important; }
     .stNumberInput input, .stSelectbox div[data-baseweb="select"], .stTextInput input { background-color: #1A1A1A !important; color: #FFFFFF !important; border: 1px solid #FF9800 !important; }
+    
+    /* Onglets */
     button[data-baseweb="tab"] { color: #FFFFFF !important; }
     button[data-baseweb="tab"][aria-selected="true"] { color: #FF9800 !important; border-bottom-color: #FF9800 !important; }
+    
+    /* FIX CONTRASTE BLOC DE CODE (Lien copiable) */
+    div[data-testid="stCodeBlock"], 
+    div[data-testid="stCodeBlock"] pre, 
+    div[data-testid="stCodeBlock"] code { 
+        background-color: #1A1A1A !important; 
+        color: #FF9800 !important; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -51,7 +65,7 @@ if "profils" not in st.session_state:
     }
 profils = st.session_state.profils
 
-@st.cache_data(ttl=5) # Rafraîchissement régulier
+@st.cache_data(ttl=5)
 def charger_donnees():
     try:
         boissons = supabase.table("drinks").select("*").order("created_at", desc=False).execute()
@@ -61,7 +75,7 @@ def charger_donnees():
 
 boissons_nuageuses, repas_nuage = charger_donnees()
 
-# --- MOTEUR DE CALCUL (Préparation des données) ---
+# --- MOTEUR DE CALCUL ---
 maintenant = pd.Timestamp.now(tz='Europe/Paris')
 debut_suivi = maintenant - pd.Timedelta(hours=2)
 fin_suivi = maintenant + pd.Timedelta(hours=6)
@@ -134,7 +148,7 @@ with col_texte:
     st.code("https://apero-app.streamlit.app", language="text")
 st.divider()
 
-# --- 1. DÉCLARATION (Mis en premier) ---
+# --- 1. DÉCLARATION ---
 st.header("🍹 1. Déclarer une consommation")
 choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️"], horizontal=True)
 moment_actuel = datetime.datetime.now().isoformat()
@@ -165,6 +179,8 @@ st.divider()
 st.header("📍 2. Tableau de bord en direct")
 
 donnees_tableau = []
+texte_whatsapp = "🪳 *Haggis et les cafards — Point AlcooSuivi* 🍻\n\n"
+
 for nom in profils.keys():
     verres_nom = df_verres[df_verres['pseudo'] == nom] if not df_verres.empty else pd.DataFrame()
     
@@ -174,7 +190,6 @@ for nom in profils.keys():
         taux_actuel = df_graphique[nom].iloc[idx_maintenant]
         taux_max = df_graphique[nom].max()
         
-        # Calcul heure de retour à jeun
         if taux_actuel > 0.01:
             heures_restantes = taux_actuel / 0.15
             retour_zero = (maintenant + pd.Timedelta(hours=heures_restantes)).strftime("%H:%M")
@@ -193,8 +208,17 @@ for nom in profils.keys():
         "Jours sans alcool": jours_sans,
         "Heure de sobriété (0 g/L)": retour_zero
     })
+    
+    texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f} g/L (Max: {taux_max:.2f}) — _Sobriété : {retour_zero}_\n"
 
 st.dataframe(pd.DataFrame(donnees_tableau), use_container_width=True, hide_index=True)
+
+texte_wa_encode = urllib.parse.quote(texte_whatsapp)
+lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
+
+st.markdown("<br>", unsafe_allow_html=True)
+st.link_button("📲 Partager le bilan actuel sur le groupe WhatsApp", lien_partage_whatsapp)
+st.divider()
 
 # --- 3. GRAPHIQUE ---
 st.header("📊 3. Courbes d'alcoolémie")
@@ -222,7 +246,7 @@ else:
 
 st.divider()
 
-# --- 5. CONFIGURATION ÉQUIPE (Rétractable) ---
+# --- 5. CONFIGURATION ÉQUIPE ---
 with st.expander("⚙️ Gérer l'équipe (Ajuster poids & Ajouter invités)", expanded=False):
     onglet_Ajusteur, tab_Ajouter = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité"])
     with onglet_Ajusteur:
