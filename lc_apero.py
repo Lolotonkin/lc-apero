@@ -271,16 +271,16 @@ if boissons_nuageuses:
     # --- SECTION ADMINISTRATION ---
     st.divider()
     with st.expander("⚙️ Administration"):
-        # 1. On crée le champ de saisie (il reste vide par défaut)
-        mdp = st.text_input("Mot de passe pour réinitialiser la soirée", type="password")
+        # On utilise une clé pour garder le mot de passe en mémoire
+        mdp = st.text_input("Mot de passe pour réinitialiser la soirée", type="password", key="mdp_admin")
         
-        # 2. Le code ci-dessous ne s'exécute QUE si le bouton est pressé
         if st.button("🚨 TOUT EFFACER (Données)"):
-            if mdp == "lolo":
+            # On vérifie la valeur stockée dans la session
+            if st.session_state.mdp_admin == "lolo":
                 supabase.table("drinks").delete().neq("id", 0).execute()
                 supabase.table("repas").delete().neq("id", 0).execute()
                 st.success("La base a été remise à zéro.")
-                st.rerun() # Recharge la page pour vider le graphique
+                st.rerun()
             else:
                 st.error("Mot de passe incorrect.")
 else:
