@@ -269,7 +269,8 @@ if boissons_nuageuses:
             heures_ecoulees = (t - debut_suivi).total_seconds() / 3600.0
             # Le taux est la somme de l'alcool absorbé / (masse corporelle * coefficient) 
             # moins l'élimination naturelle (0.15g/kg/h)
-            taux_theorique = (total_alcool_g / (poids * coef_diffusion)) - (0.15 * heures_ecoulees)
+            # On soustrait 0.15g/L par heure, mais seulement après 30 minutes (0.5h) d'absorption
+taux_theorique = (total_alcool_g / (poids * coef_diffusion)) - (0.15 * max(0, heures_ecoulees - 0.5))
             taux_liste.append(max(0.0, taux_theorique))
             
         df_graphique[nom] = taux_liste
