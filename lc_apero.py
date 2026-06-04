@@ -4,10 +4,32 @@ import requests
 import pandas as pd
 import datetime
 
-# --- CONFIGURATION INITIALE ---
-st.set_page_config(page_title="Haggis et les cafards 🪳", layout="wide")
+# --- CONFIGURATION INITIALE & THÈME SOMBRE ---
+st.set_page_config(
+    page_title="Haggis et les cafards 🪳", 
+    layout="wide", 
+    initial_sidebar_state="collapsed"
+)
 
-# Connexion sécurisée directe (Hardcoded pour éviter les bugs de l'éditeur Streamlit)
+# Application d'un style sombre personnalisé pour l'interface
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #121212;
+        color: #E0E0E0;
+    }
+    h1, h2, h3 {
+        color: #FF9800 !important;
+    }
+    .stButton>button {
+        background-color: #FF9800;
+        color: black;
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Connexion sécurisée directe à Supabase
 SUPABASE_URL = "https://rjexlotreipfjbgpfcnt.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqZXhsb3RyZWlwZmpiZ3BmY250Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDUyOTkyNywiZXhwIjoyMDk2MTA1OTI3fQ.0vMnopwPCMQaOmzCPNcdc4HLqr1d1npoqL3xXNnxGQ8"
 
@@ -20,13 +42,13 @@ except Exception as e:
 URL_WEBHOOK_WHATSAPP = st.secrets.get("URL_WEBHOOK_WHATSAPP", "")
 
 # --- ENVOI DES ALERTES WHATSAPP ---
-def envoyer_alerte_whatsapp(pseudo, boisson, est_repas=False):
+def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
     if not URL_WEBHOOK_WHATSAPP:
         return
     if est_repas:
         texte = f"🍽️ *AlcooSuivi* : {pseudo} vient de déclarer un repas ! L'absorption des prochains verres sera ralentie (Modèle image_8.png). 🥪"
     else:
-        texte = f"🍹 *AlcooSuivi* : {pseudo} vient de s'enfiler un verre de type {boisson} ! La courbe grimpe ! 📈"
+        texte = f"🍹 *AlcooSuivi* : {pseudo} vient de s'enfiler un verre ! ({detail_conso}) ! La courbe grimpe ! 📈"
     try:
         requests.post(URL_WEBHOOK_WHATSAPP, json={"message": texte, "pseudo": pseudo})
     except Exception:
@@ -45,7 +67,6 @@ profils = st.session_state.profils
 # --- CHARGEMENT DEPUIS LE CLOUD ---
 def charger_donnees_depuis_cloud():
     try:
-        # Requêtes sur les vraies tables Supabase (drinks et meals)
         boissons = supabase.table("drinks").select("*").order("created_at", desc=False).execute()
         repas = supabase.table("meals").select("*").order("created_at", desc=False).execute()
         return (boissons.data if boissons.data else []), (repas.data if repas.data else [])
@@ -56,6 +77,7 @@ def charger_donnees_depuis_cloud():
 boissons_nuageuses, repas_nuage = charger_donnees_depuis_cloud()
 
 # --- INTERFACE : 1. CONFIGURATION ÉQUIPE ---
+st.title("🪳 Haggis et les cafards — Suivi d'absorption")
 st.header("👥 1. Configuration de l'équipe")
 onglet_Ajusteur, tab_Ajouter = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité"])
 
@@ -86,44 +108,47 @@ st.write("---")
 
 # --- INTERFACE : 2. DÉCLARATION DES ENTRÉES ---
 st.header("🍹 2. Déclaration des consommations & repas")
-c1, c2, c3 = st.columns(3)
-with c1:
-    Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
-with c2:
-    Type_Boisson = st.selectbox("Type de boisson", ["Bière Léger (4%)", "Bière Forte (8%)", "Vin / Champagne (12%)", "Apéritif / Fort (40%)", "Repas complet 🍽️"])
-with c3:
-    Volume_ml = st.number_input("Volume (ml)", min_value=10, max_value=1000, value=250, step=10)
+choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️"], horizontal=True)
 
-if st.button("Enregistrer la sélection"):
-    moment_actuel = datetime.datetime.now().isoformat()
-    
-    if "Repas" in Type_Boisson:
-        # Enregistrement dans la table 'meals'
+moment_actuel = datetime.datetime.now().isoformat()
+
+if "repas" in choix_type.lower():
+    Qui = st.selectbox("Qui a mangé ?", list(profils.keys()))
+    if st.button("Enregistrer le repas 💾"):
         try:
             supabase.table("meals").insert({"pseudo": Qui, "created_at": moment_actuel}).execute()
-            envoyer_alerte_whatsapp(Qui, Type_Boisson, est_repas=True)
+            envoyer_alerte_whatsapp(Qui, "", est_repas=True)
             st.success(f"🍽️ Repas enregistré pour {Qui}")
             st.rerun()
         except Exception as e:
             st.error(f"Erreur d'écriture Repas : {e}")
-    else:
-        # Enregistrement dans la table 'drinks'
+else:
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
+    with c2:
+        Volume_ml = st.number_input("Volume du verre (ml)", min_value=10, max_value=1000, value=250, step=10)
+    with c3:
+        Degre_Alcool = st.number_input("Degré d'alcool (° ou %)", min_value=0.0, max_value=100.0, value=5.0, step=0.5)
+
+    if st.button("Enregistrer le verre 💾"):
         try:
+            label_boisson = f"{Volume_ml}ml @ {Degre_Alcool}%"
             supabase.table("drinks").insert({
                 "pseudo": Qui, 
-                "type_boisson": Type_Boisson, 
+                "type_boisson": label_boisson, 
                 "volume": Volume_ml, 
                 "created_at": moment_actuel
             }).execute()
-            envoyer_alerte_whatsapp(Qui, Type_Boisson, est_repas=False)
-            st.success(f"🍹 {Type_Boisson} ({Volume_ml}ml) enregistré pour {Qui}")
+            envoyer_alerte_whatsapp(Qui, label_boisson, est_repas=False)
+            st.success(f"🍹 Verre enregistré pour {Qui} ({label_boisson})")
             st.rerun()
         except Exception as e:
             st.error(f"Erreur d'écriture Boisson : {e}")
 
 st.write("---")
 
-# --- INTERFACE : 3. GRAPHIC & ALCOOLEMIE ---
+# --- INTERFACE : 3. GRAPHIQUE & ALCOOLEMIE ---
 st.header("📊 3. Évolution des courbes d'alcoolémie")
 
 if boissons_nuageuses:
@@ -134,14 +159,12 @@ if boissons_nuageuses:
     if not df_repas.empty:
         df_repas['created_at'] = pd.to_datetime(df_repas['created_at'])
         
-    # Génération de la ligne temporelle du graphique (du premier verre jusqu'à maintenant)
     debut_suivi = df_verres['created_at'].min()
     fin_suivi = datetime.datetime.now()
     axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min')
     
     df_graphique = pd.DataFrame(index=axe_temps)
     
-    # Calcul Widmark itératif par personne
     for nom, info in profils.items():
         poids = info["poids"]
         coef_diffusion = 0.7 if info["sexe"] == "Homme" else 0.6
@@ -154,10 +177,17 @@ if boissons_nuageuses:
             total_alcool_g = 0
             for _, row in verres_passes.iterrows():
                 vol = row['volume']
-                degre = 0.04 if "4%" in row['type_boisson'] else (0.08 if "8%" in row['type_boisson'] else (0.12 if "12%" in row['type_boisson'] else 0.40))
+                
+                # Extraction dynamique du degré depuis la chaîne stockée (ex: "250ml @ 5.0%")
+                try:
+                    string_degre = row['type_boisson'].split('@')[1].replace('%', '').strip()
+                    degre = float(string_degre) / 100.0
+                except Exception:
+                    degre = 0.05  # Valeur de secours par défaut (5%)
+                    
                 masse_alcool = vol * degre * 0.8
                 
-                # Effet du repas : si un repas a eu lieu dans les 2 heures précédant le verre
+                # Impact du repas (image_8.png) : baisse du pic d'absorption de 45% si mangé dans les 2h avant
                 a_mange = False
                 if not repas_passes.empty:
                     for _, r_row in repas_passes.iterrows():
@@ -169,7 +199,6 @@ if boissons_nuageuses:
                 total_alcool_g += masse_alcool * 0.55 if a_mange else masse_alcool
             
             heures_ecoulees = (t - debut_suivi).total_seconds() / 3600.0
-            # Élimination naturelle : 0.15g/l par heure
             taux_theorique = (total_alcool_g / (poids * coef_diffusion)) - (0.15 * heures_ecoulees)
             taux_liste.append(max(0.0, taux_theorique))
             
@@ -177,7 +206,7 @@ if boissons_nuageuses:
 
     st.line_chart(df_graphique)
     
-    st.subheader("📋 Historique des derniers verres enregistrés")
+    st.subheader("📋 Historique des entrées")
     st.dataframe(df_verres[['pseudo', 'type_boisson', 'volume', 'created_at']].tail(10))
 else:
     st.info("Aucune donnée disponible. Ajoutez une consommation pour générer les graphiques d'absorption.")
