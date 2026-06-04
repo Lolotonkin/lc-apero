@@ -212,7 +212,7 @@ if boissons_nuageuses:
                 vol = row['alcool_g']
                 
                 try:
-                    string_degre = row['type_boisson'].split('@')[1].replace('%', '').strip()
+                    string_degre = row['boisson'].split('@')[1].replace('%', '').strip()
                     degre = float(string_degre) / 100.0
                 except Exception:
                     degre = 0.05
@@ -238,6 +238,6 @@ if boissons_nuageuses:
     st.line_chart(df_graphique)
     
     st.subheader("📋 Historique des entrées")
-    st.dataframe(df_verres[['pseudo', 'type_boisson', 'volume', 'created_at']].tail(10))
+    st.dataframe(df_verres[['pseudo', 'boisson', 'alcool_g', 'created_at']].tail(10))
 else:
     st.info("Aucune donnée disponible. Ajoutez une consommation pour générer les graphiques d'absorption.")
