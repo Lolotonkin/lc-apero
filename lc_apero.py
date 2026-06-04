@@ -83,10 +83,10 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
 # --- CONFIGURATION ÉQUIPE ---
 if "profils" not in st.session_state:
     st.session_state.profils = {
-        "Lolo": {"sexe": "Homme", "poids": 75},
-        "Poum": {"sexe": "Homme", "poids": 75},
-        "Nico": {"sexe": "Homme", "poids": 75},
-        "Duj": {"sexe": "Homme", "poids": 75}
+        "Lolo'": {"sexe": "Homme", "poids": 75},
+        "Poums'": {"sexe": "Homme", "poids": 75},
+        "Nico'": {"sexe": "Homme", "poids": 75},
+        "Duj'": {"sexe": "Homme", "poids": 75}
     }
 profils = st.session_state.profils
 
@@ -111,7 +111,7 @@ with onglet_Ajusteur:
     cols = st.columns(len(profils))
     for i, (nom, info) in enumerate(profils.items()):
         with cols[i]:
-            st.subheader(nom)
+            st.markdown("<h3 style='color: orange;'>📋 Historique des entrées</h3>", unsafe_allow_html=True)
             nouveau_poids = st.number_input(f"Poids (kg) - {nom}", min_value=40, max_value=150, value=info["poids"], key=f"poids_{nom}")
             st.session_state.profils[nom]["poids"] = nouveau_poids
 
