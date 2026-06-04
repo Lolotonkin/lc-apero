@@ -193,13 +193,23 @@ if st.button("🗑️ Remise à zéro totale (Supprimer tout)"):
 st.header("📊 3. Évolution des courbes d'alcoolémie")
 
 if boissons_nuageuses:
+    # Conversion en UTC puis conversion immédiate en heure de Paris
     df_verres = pd.DataFrame(boissons_nuageuses)
-    # On force la conversion en datetime sans fuseau horaire (tz-naive)
-    df_verres['created_at'] = pd.to_datetime(df_verres['created_at']).dt.tz_localize(None)
+    df_verres['created_at'] = pd.to_datetime(df_verres['created_at']).dt.tz_localize('UTC').dt.tz_convert('Europe/Paris')
     
     df_repas = pd.DataFrame(repas_nuage) if repas_nuage else pd.DataFrame(columns=['pseudo', 'created_at'])
     if not df_repas.empty:
-        df_repas['created_at'] = pd.to_datetime(df_repas['created_at']).dt.tz_localize(None)
+        df_repas['created_at'] = pd.to_datetime(df_repas['created_at']).dt.tz_localize('UTC').dt.tz_convert('Europe/Paris')
+
+    # Maintenant localisé à Paris pour le calcul des fenêtres
+    maintenant = pd.Timestamp.now(tz='Europe/Paris')
+    premier_verre = df_verres['created_at'].min()
+    
+    # Fenêtre glissante : max entre (Début soirée) et (H-2)
+    debut_suivi = max(premier_verre, maintenant - pd.Timedelta(hours=2))
+    fin_suivi = maintenant + pd.Timedelta(hours=6)
+    
+    axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min', tz='Europe/Paris')
         
     # --- DÉFINITION DE LA FENÊTRE GLISSANTE ---
     maintenant = datetime.datetime.now().replace(tzinfo=None)
