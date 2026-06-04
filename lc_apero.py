@@ -209,7 +209,7 @@ if boissons_nuageuses:
             
             total_alcool_g = 0
             for _, row in verres_passes.iterrows():
-                vol = row['volume']
+                vol = row['alcool_g']
                 
                 try:
                     string_degre = row['type_boisson'].split('@')[1].replace('%', '').strip()
