@@ -160,6 +160,7 @@ else:
     if st.button("Enregistrer le verre 💾"):
         try:
             label_boisson = f"{Volume_ml}ml @ {Degre_Alcool}%"
+            # Assure-toi que 'type_boisson' correspond exactement au nom de ta colonne dans Supabase
             supabase.table("drinks").insert({
                 "pseudo": Qui, 
                 "type_boisson": label_boisson, 
