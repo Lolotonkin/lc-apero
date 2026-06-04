@@ -178,6 +178,17 @@ else:
 
 st.write("---")
 
+# --- AJOUT DU BOUTON REMISE À ZÉRO ICI ---
+st.subheader("⚠️ Zone de danger")
+if st.button("🗑️ Remise à zéro totale (Supprimer tout)"):
+    try:
+        # Suppression sécurisée des données dans les deux tables
+        supabase.table("drinks").delete().neq("id", 0).execute()
+        supabase.table("meals").delete().neq("id", 0).execute()
+        st.success("Toutes les données ont été effacées !")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Erreur lors de la suppression : {e}")
 # --- INTERFACE : 3. GRAPHIC & ALCOOLEMIE ---
 st.header("📊 3. Évolution des courbes d'alcoolémie")
 
