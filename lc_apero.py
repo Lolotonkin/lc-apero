@@ -3,6 +3,9 @@ from supabase import create_client, Client
 import requests
 import pandas as pd
 import datetime
+import qrcode
+from PIL import Image
+import io
 
 # --- CONFIGURATION INITIALE & THÈME HAUT CONTRASTE ---
 st.set_page_config(
@@ -72,7 +75,7 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
     if not URL_WEBHOOK_WHATSAPP:
         return
     if est_repas:
-        texte = f"🍽️ *AlcooSuivi* : {pseudo} vient de déclarer un repas ! L'absorption des prochains verres sera ralentie (Modèle image_8.png). 🥪"
+        texte = f"🍽️ *AlcooSuivi* : {pseudo} vient de déclarer un repas ! L'absorption des prochains verres sera ralentie. 🥪"
     else:
         texte = f"🍹 *AlcooSuivi* : {pseudo} vient de s'enfiler un verre ! ({detail_conso}) ! La courbe grimpe ! 📈"
     try:
@@ -99,24 +102,30 @@ def charger_donnees_depuis_cloud():
     except Exception as e:
         st.error(f"⚠️ Erreur de lecture Cloud : {e}")
         return [], []
-st.subheader("🔗 Accès à l'application")
-st.write("Lien : https://ton-application.streamlit.app") # Remplace par ton vrai lien
-
-import qrcode
-from PIL import Image
-import io
-
-img = qrcode.make("https://ton-application.streamlit.app") # Remplace par ton vrai lien
-buf = io.BytesIO()
-img.save(buf, format='PNG')
-st.image(buf.getvalue(), caption="Scanner pour boire (avec modération)", width=150)
-
-st.write("---")
 
 boissons_nuageuses, repas_nuage = charger_donnees_depuis_cloud()
 
-# --- INTERFACE : 1. CONFIGURATION ÉQUIPE ---
+# ==========================================
+# INTERFACE UTILISATEUR
+# ==========================================
+
+# --- 0. ACCÈS & QR CODE (Toujours visible) ---
 st.title("🪳 Haggis et les cafards — Suivi d'absorption")
+
+col_qr, col_texte = st.columns([1, 4])
+with col_qr:
+    # Génération du QR Code
+    img = qrcode.make("https://apero-app.streamlit.app") # Remplace par ton vrai lien si besoin
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    st.image(buf.getvalue(), width=100)
+with col_texte:
+    st.markdown("<h3 style='color: orange;'>🔗 Accès à l'application</h3>", unsafe_allow_html=True)
+    st.write("Scannez le QR Code pour rejoindre le dashboard.")
+
+st.divider()
+
+# --- 1. CONFIGURATION ÉQUIPE ---
 st.header("👥 1. Configuration de l'équipe")
 onglet_Ajusteur, tab_Ajouter = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité"])
 
@@ -124,8 +133,8 @@ with onglet_Ajusteur:
     cols = st.columns(len(profils))
     for i, (nom, info) in enumerate(profils.items()):
         with cols[i]:
-            st.markdown("<h3 style='color: orange;'>📋 Historique des entrées</h3>", unsafe_allow_html=True)
-            nouveau_poids = st.number_input(f"Poids (kg) - {nom}", min_value=40, max_value=150, value=info["poids"], key=f"poids_{nom}")
+            st.markdown(f"<h4 style='color: orange;'>{nom}</h4>", unsafe_allow_html=True)
+            nouveau_poids = st.number_input(f"Poids (kg)", min_value=40, max_value=150, value=info["poids"], key=f"poids_{nom}")
             st.session_state.profils[nom]["poids"] = nouveau_poids
 
 with tab_Ajouter:
@@ -135,7 +144,7 @@ with tab_Ajouter:
     with col2:
         nouveau_sexe = st.selectbox("Sexe", ["Homme", "Femme"])
     with col3:
-        nouveau_poids_inv = st.number_input("Poids (kg)", min_value=40, max_value=150, value=70)
+        nouveau_poids_inv = st.number_input("Poids invité (kg)", min_value=40, max_value=150, value=70)
     
     if st.button("Ajouter à l'équipe"):
         if nouveau_nom and nouveau_nom not in st.session_state.profils:
@@ -143,9 +152,9 @@ with tab_Ajouter:
             st.success(f"✔️ {nouveau_nom} a rejoint la table !")
             st.rerun()
 
-st.write("---")
+st.divider()
 
-# --- INTERFACE : 2. DÉCLARATION DES ENTRÉES ---
+# --- 2. DÉCLARATION DES ENTRÉES ---
 st.header("🍹 2. Déclaration des consommations & repas")
 choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️"], horizontal=True)
 
@@ -172,7 +181,6 @@ else:
 
     if st.button("Enregistrer le verre 💾"):
         try:
-            # Calcul des données correspondant à tes colonnes réelles
             boisson_label = f"{Volume_ml}ml @ {Degre_Alcool}%"
             alcool_g = float(Volume_ml * (Degre_Alcool / 100) * 0.8)
             
@@ -189,20 +197,9 @@ else:
         except Exception as e:
             st.error(f"Erreur d'écriture Boisson : {e}")
 
-st.write("---")
+st.divider()
 
-# --- AJOUT DU BOUTON REMISE À ZÉRO ICI ---
-st.subheader("⚠️ Zone de danger")
-if st.button("🗑️ Remise à zéro totale (Supprimer tout)"):
-    try:
-        # Suppression sécurisée des données dans les deux tables
-        supabase.table("drinks").delete().neq("id", 0).execute()
-        supabase.table("meals").delete().neq("id", 0).execute()
-        st.success("Toutes les données ont été effacées !")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Erreur lors de la suppression : {e}")
-# --- INTERFACE : 3. GRAPHIC & ALCOOLEMIE ---
+# --- 3. GRAPHIC & ALCOOLEMIE ---
 st.header("📊 3. Évolution des courbes d'alcoolémie")
 
 if boissons_nuageuses:
@@ -222,11 +219,8 @@ if boissons_nuageuses:
 
     # 2. Fenêtre glissante fixe de 8 heures (2h passées, 6h futures)
     maintenant = pd.Timestamp.now(tz='Europe/Paris')
-    
-    # On force le début à 2h avant maintenant, peu importe le premier verre
     debut_suivi = maintenant - pd.Timedelta(hours=2)
     fin_suivi = maintenant + pd.Timedelta(hours=6)
-    
     axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min', tz='Europe/Paris')
     
     # 3. Calcul des courbes
@@ -241,12 +235,10 @@ if boissons_nuageuses:
             verres_passes = df_verres[(df_verres['pseudo'] == nom) & (df_verres['created_at'] <= t)]
             repas_passes = df_repas[(df_repas['pseudo'] == nom) & (df_repas['created_at'] <= t)] if not df_repas.empty else pd.DataFrame()
             
-            # --- CALCUL UNIQUE ET CORRECT ---
             total_alcool_g = 0
             for _, row in verres_passes.iterrows():
                 masse_alcool = row['alcool_g']
                 
-                # Vérification repas
                 a_mange = False
                 if not repas_passes.empty:
                     repas_candidats = repas_passes[repas_passes['created_at'] <= row['created_at']]
@@ -258,7 +250,6 @@ if boissons_nuageuses:
                 
                 total_alcool_g += masse_alcool * 0.55 if a_mange else masse_alcool
             
-            # --- CALCUL DU TAUX ---
             heures_ecoulees = (t - debut_suivi).total_seconds() / 3600.0
             taux_theorique = (total_alcool_g / (poids * coef_diffusion)) - (0.15 * max(0, heures_ecoulees - 0.5))
             taux_liste.append(max(0.0, taux_theorique))
@@ -266,7 +257,7 @@ if boissons_nuageuses:
         df_graphique[nom] = taux_liste
 
     # --- AFFICHAGE DES TAUX ACTUELS ---
-    st.subheader("📍 Taux d'alcoolémie actuel")
+    st.markdown("<h3 style='color: orange;'>📍 Taux d'alcoolémie actuel</h3>", unsafe_allow_html=True)
     res_cols = st.columns(len(profils))
     
     for i, nom in enumerate(profils.keys()):
@@ -278,23 +269,22 @@ if boissons_nuageuses:
     # --- GRAPHIQUE ET HISTORIQUE ---
     st.line_chart(df_graphique)
     
-    st.subheader("📋 Historique des entrées")
+    st.markdown("<h3 style='color: orange;'>📋 Historique des entrées</h3>", unsafe_allow_html=True)
     st.dataframe(df_verres[['pseudo', 'boisson', 'alcool_g', 'created_at']].tail(10))
 
-    # --- SECTION ADMINISTRATION ---
-    st.divider()
-    with st.expander("⚙️ Administration"):
-        # On utilise une clé pour garder le mot de passe en mémoire
-        mdp = st.text_input("Mot de passe pour réinitialiser la soirée", type="password", key="mdp_admin")
-        
-        if st.button("🚨 TOUT EFFACER (Données)"):
-            # On vérifie la valeur stockée dans la session
-            if st.session_state.mdp_admin == "lolo":
-                supabase.table("drinks").delete().neq("id", 0).execute()
-                supabase.table("repas").delete().neq("id", 0).execute()
-                st.success("La base a été remise à zéro.")
-                st.rerun()
-            else:
-                st.error("Mot de passe incorrect.")
 else:
     st.info("Aucune donnée disponible. Ajoutez une consommation pour générer les graphiques d'absorption.")
+
+# --- 4. SECTION ADMINISTRATION (Toujours en bas) ---
+st.divider()
+with st.expander("⚙️ Administration"):
+    mdp = st.text_input("Mot de passe pour réinitialiser la soirée", type="password", key="mdp_admin")
+    
+    if st.button("🚨 TOUT EFFACER (Données)"):
+        if st.session_state.get("mdp_admin") == "lolo":
+            supabase.table("drinks").delete().neq("id", 0).execute()
+            supabase.table("meals").delete().neq("id", 0).execute()
+            st.success("La base a été remise à zéro.")
+            st.rerun()
+        else:
+            st.error("Mot de passe incorrect.")
