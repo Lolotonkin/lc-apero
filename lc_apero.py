@@ -99,6 +99,19 @@ def charger_donnees_depuis_cloud():
     except Exception as e:
         st.error(f"⚠️ Erreur de lecture Cloud : {e}")
         return [], []
+st.subheader("🔗 Accès à l'application")
+st.write("Lien : https://ton-application.streamlit.app") # Remplace par ton vrai lien
+
+import qrcode
+from PIL import Image
+import io
+
+img = qrcode.make("https://ton-application.streamlit.app") # Remplace par ton vrai lien
+buf = io.BytesIO()
+img.save(buf, format='PNG')
+st.image(buf.getvalue(), caption="Scanner pour boire (avec modération)", width=150)
+
+st.write("---")
 
 boissons_nuageuses, repas_nuage = charger_donnees_depuis_cloud()
 
