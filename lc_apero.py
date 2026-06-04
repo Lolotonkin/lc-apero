@@ -207,11 +207,11 @@ if boissons_nuageuses:
     if not df_repas.empty:
         df_repas['created_at'] = clean_tz(df_repas['created_at'])
 
-    # 2. Fenêtre glissante (Paris)
+    # 2. Fenêtre glissante fixe de 8 heures (2h passées, 6h futures)
     maintenant = pd.Timestamp.now(tz='Europe/Paris')
-    premier_verre = df_verres['created_at'].min()
     
-    debut_suivi = max(premier_verre, maintenant - pd.Timedelta(hours=2))
+    # On force le début à 2h avant maintenant, peu importe le premier verre
+    debut_suivi = maintenant - pd.Timedelta(hours=2)
     fin_suivi = maintenant + pd.Timedelta(hours=6)
     
     axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min', tz='Europe/Paris')
