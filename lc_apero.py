@@ -201,8 +201,15 @@ if boissons_nuageuses:
     if not df_repas.empty:
         df_repas['created_at'] = pd.to_datetime(df_repas['created_at']).dt.tz_localize(None)
         
-    debut_suivi = df_verres['created_at'].min()
-    fin_suivi = datetime.datetime.now().replace(tzinfo=None) # On retire le fuseau ici aussi
+    # --- DÉFINITION DE LA FENÊTRE GLISSANTE ---
+    maintenant = datetime.datetime.now().replace(tzinfo=None)
+    premier_verre = df_verres['created_at'].min()
+    
+    # Le début est soit 2h avant le premier verre, soit 2h avant maintenant
+    debut_suivi = max(premier_verre, maintenant - pd.Timedelta(hours=2))
+    # La fin est maintenant + 6h de projection
+    fin_suivi = maintenant + pd.Timedelta(hours=6)
+    
     axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min')
     
     # ... le reste du code de calcul suit ici ...
