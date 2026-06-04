@@ -8,51 +8,40 @@ from PIL import Image
 import io
 import plotly.graph_objects as go
 
-# --- CONFIGURATION INITIALE & THÈME HAUT CONTRASTE ---
-st.set_page_config(
-    page_title="Haggis et les cafards 🪳", 
-    layout="wide", 
-    initial_sidebar_state="collapsed"
-)
+# --- CONFIGURATION INITIALE & THÈME ---
+st.set_page_config(page_title="Haggis et les cafards 🪳", layout="wide", initial_sidebar_state="collapsed")
 
-# Style CSS forcé
 st.markdown("""
     <style>
     .stApp { background-color: #000000 !important; color: #FFFFFF !important; }
-    h1, h2, h3, p, span, label { color: #FFFFFF !important; }
+    h1, h2, h3, p, span, label, div.stMarkdown { color: #FFFFFF !important; }
     h1, h2 { color: #FF9800 !important; font-weight: bold !important; }
     .stButton>button { background-color: #FF9800 !important; color: #000000 !important; font-weight: bold !important; border: 2px solid #FFFFFF !important; }
-    .stNumberInput input, .stSelectbox div[data-baseweb="select"] { background-color: #1A1A1A !important; color: #FFFFFF !important; border: 1px solid #FF9800 !important; }
+    .stNumberInput input, .stSelectbox div[data-baseweb="select"], .stTextInput input { background-color: #1A1A1A !important; color: #FFFFFF !important; border: 1px solid #FF9800 !important; }
     button[data-baseweb="tab"] { color: #FFFFFF !important; }
     button[data-baseweb="tab"][aria-selected="true"] { color: #FF9800 !important; border-bottom-color: #FF9800 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# Connexion Supabase
+# --- CONNEXION SUPABASE ---
 SUPABASE_URL = "https://rjexlotreipfjbgpfcnt.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqZXhsb3RyZWlwZmpiZ3BmY250Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDUyOTkyNywiZXhwIjoyMDk2MTA1OTI3fQ.0vMnopwPCMQaOmzCPNcdc4HLqr1d1npoqL3xXNnxGQ8"
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except Exception as e:
-    st.error(f"🔑 Erreur d'initialisation Supabase : {e}")
+    st.error(f"🔑 Erreur Supabase : {e}")
     st.stop()
 
 URL_WEBHOOK_WHATSAPP = st.secrets.get("URL_WEBHOOK_WHATSAPP", "")
 
-# --- ENVOI DES ALERTES WHATSAPP ---
 def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
     if not URL_WEBHOOK_WHATSAPP: return
-    if est_repas:
-        texte = f"🍽️ *AlcooSuivi* : {pseudo} vient de déclarer un repas ! L'absorption sera ralentie. 🥪"
-    else:
-        texte = f"🍹 *AlcooSuivi* : {pseudo} vient de s'enfiler un verre ! ({detail_conso}) 📈"
-    try:
-        requests.post(URL_WEBHOOK_WHATSAPP, json={"message": texte, "pseudo": pseudo})
-    except Exception:
-        pass
+    texte = f"🍽️ *AlcooSuivi* : {pseudo} déclare un repas. 🥪" if est_repas else f"🍹 *AlcooSuivi* : {pseudo} s'enfile un verre ({detail_conso}) 📈"
+    try: requests.post(URL_WEBHOOK_WHATSAPP, json={"message": texte, "pseudo": pseudo})
+    except: pass
 
-# --- CONFIGURATION ÉQUIPE ---
+# --- SESSION & DONNÉES ---
 if "profils" not in st.session_state:
     st.session_state.profils = {
         "Lolo'": {"sexe": "Homme", "poids": 75},
@@ -62,23 +51,76 @@ if "profils" not in st.session_state:
     }
 profils = st.session_state.profils
 
-# --- CHARGEMENT CLOUD ---
-def charger_donnees_depuis_cloud():
+@st.cache_data(ttl=5) # Rafraîchissement régulier
+def charger_donnees():
     try:
         boissons = supabase.table("drinks").select("*").order("created_at", desc=False).execute()
         repas = supabase.table("meals").select("*").order("created_at", desc=False).execute()
-        return (boissons.data if boissons.data else []), (repas.data if repas.data else [])
-    except Exception as e:
-        st.error(f"⚠️ Erreur Cloud : {e}")
-        return [], []
+        return (boissons.data or []), (repas.data or [])
+    except: return [], []
 
-boissons_nuageuses, repas_nuage = charger_donnees_depuis_cloud()
+boissons_nuageuses, repas_nuage = charger_donnees()
+
+# --- MOTEUR DE CALCUL (Préparation des données) ---
+maintenant = pd.Timestamp.now(tz='Europe/Paris')
+debut_suivi = maintenant - pd.Timedelta(hours=2)
+fin_suivi = maintenant + pd.Timedelta(hours=6)
+axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min', tz='Europe/Paris')
+
+def clean_tz(series):
+    dt = pd.to_datetime(series)
+    if dt.dt.tz is None: dt = dt.dt.tz_localize('UTC')
+    return dt.dt.tz_convert('Europe/Paris')
+
+if boissons_nuageuses:
+    df_verres = pd.DataFrame(boissons_nuageuses)
+    df_verres['created_at'] = clean_tz(df_verres['created_at'])
+else:
+    df_verres = pd.DataFrame(columns=['pseudo', 'boisson', 'alcool_g', 'created_at'])
+
+if repas_nuage:
+    df_repas = pd.DataFrame(repas_nuage)
+    df_repas['created_at'] = clean_tz(df_repas['created_at'])
+else:
+    df_repas = pd.DataFrame(columns=['pseudo', 'created_at'])
+
+df_graphique = pd.DataFrame(index=axe_temps)
+idx_maintenant = df_graphique.index.get_indexer([maintenant], method='nearest')[0]
+
+for nom, info in profils.items():
+    poids = info["poids"]
+    coef_diffusion = 0.7 if info["sexe"] == "Homme" else 0.6
+    taux_liste = []
+    
+    verres_perso = df_verres[df_verres['pseudo'] == nom] if not df_verres.empty else pd.DataFrame()
+    repas_perso = df_repas[df_repas['pseudo'] == nom] if not df_repas.empty else pd.DataFrame()
+
+    for t in axe_temps:
+        taux_total_t = 0.0
+        for _, verre in verres_perso.iterrows():
+            t_drink = verre['created_at']
+            diff_heures = (t - t_drink).total_seconds() / 3600.0
+            
+            if diff_heures > 0:
+                a_mange = False
+                if not repas_perso.empty:
+                    repas_avant = repas_perso[(repas_perso['created_at'] <= t_drink) & (repas_perso['created_at'] >= t_drink - pd.Timedelta(hours=2))]
+                    if not repas_avant.empty: a_mange = True
+                
+                t_pic = 1.5 if a_mange else 0.75
+                c_max = (verre['alcool_g'] / (poids * coef_diffusion)) * (0.8 if a_mange else 1.0)
+                
+                if diff_heures <= t_pic: taux_verre = c_max * (diff_heures / t_pic)
+                else: taux_verre = c_max - (0.15 * (diff_heures - t_pic))
+                
+                taux_total_t += max(0.0, taux_verre)
+        taux_liste.append(taux_total_t)
+    df_graphique[nom] = taux_liste
 
 # ==========================================
 # INTERFACE UTILISATEUR
 # ==========================================
-
-st.title("🪳 Haggis et les cafards — Suivi d'absorption")
+st.title("🪳 Haggis et les cafards")
 
 # --- 0. ACCÈS ---
 col_qr, col_texte = st.columns([1, 4])
@@ -89,38 +131,12 @@ with col_qr:
     st.image(buf.getvalue(), width=100)
 with col_texte:
     st.markdown("<h3 style='color: orange;'>🔗 Accès à l'application</h3>", unsafe_allow_html=True)
-    st.write("Scannez le QR Code pour rejoindre le dashboard.")
+    st.code("https://apero-app.streamlit.app", language="text")
 st.divider()
 
-# --- 1. CONFIGURATION ---
-st.header("👥 1. Configuration de l'équipe")
-onglet_Ajusteur, tab_Ajouter = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité"])
-
-with onglet_Ajusteur:
-    cols = st.columns(len(profils))
-    for i, (nom, info) in enumerate(profils.items()):
-        with cols[i]:
-            st.markdown(f"<h4 style='color: orange;'>{nom}</h4>", unsafe_allow_html=True)
-            nouveau_poids = st.number_input(f"Poids (kg)", min_value=40, max_value=150, value=info["poids"], key=f"poids_{nom}")
-            st.session_state.profils[nom]["poids"] = nouveau_poids
-
-with tab_Ajouter:
-    col1, col2, col3 = st.columns(3)
-    with col1: nouveau_nom = st.text_input("Nom de l'invité")
-    with col2: nouveau_sexe = st.selectbox("Sexe", ["Homme", "Femme"])
-    with col3: nouveau_poids_inv = st.number_input("Poids invité (kg)", min_value=40, max_value=150, value=70)
-    
-    if st.button("Ajouter à l'équipe"):
-        if nouveau_nom and nouveau_nom not in st.session_state.profils:
-            st.session_state.profils[nouveau_nom] = {"sexe": nouveau_sexe, "poids": nouveau_poids_inv}
-            st.success(f"✔️ {nouveau_nom} a rejoint la table !")
-            st.rerun()
-st.divider()
-
-# --- 2. DÉCLARATION ---
-st.header("🍹 2. Déclaration des consommations")
+# --- 1. DÉCLARATION (Mis en premier) ---
+st.header("🍹 1. Déclarer une consommation")
 choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️"], horizontal=True)
-
 moment_actuel = datetime.datetime.now().isoformat()
 
 if "repas" in choix_type.lower():
@@ -145,122 +161,94 @@ else:
         st.rerun()
 st.divider()
 
-# --- 3. GRAPHIQUE & ALCOOLÉMIE (Nouveau Modèle) ---
-st.header("📊 3. Évolution des courbes d'alcoolémie")
+# --- 2. TABLEAU DE BORD INSTANTANÉ ---
+st.header("📍 2. Tableau de bord en direct")
 
-if boissons_nuageuses:
-    def clean_tz(series):
-        dt = pd.to_datetime(series)
-        if dt.dt.tz is None: dt = dt.dt.tz_localize('UTC')
-        return dt.dt.tz_convert('Europe/Paris')
-
-    df_verres = pd.DataFrame(boissons_nuageuses)
-    df_verres['created_at'] = clean_tz(df_verres['created_at'])
-    df_repas = pd.DataFrame(repas_nuage) if repas_nuage else pd.DataFrame(columns=['pseudo', 'created_at'])
-    if not df_repas.empty: df_repas['created_at'] = clean_tz(df_repas['created_at'])
-
-    # Fenêtre : Il y a 2h -> Dans 6h
-    maintenant = pd.Timestamp.now(tz='Europe/Paris')
-    debut_suivi = maintenant - pd.Timedelta(hours=2)
-    fin_suivi = maintenant + pd.Timedelta(hours=6)
-    axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min', tz='Europe/Paris')
+donnees_tableau = []
+for nom in profils.keys():
+    verres_nom = df_verres[df_verres['pseudo'] == nom] if not df_verres.empty else pd.DataFrame()
     
-    df_graphique = pd.DataFrame(index=axe_temps)
-    
-    for nom, info in profils.items():
-        poids = info["poids"]
-        coef_diffusion = 0.7 if info["sexe"] == "Homme" else 0.6
-        taux_liste = []
-        
-        # Filtre des événements passés de la personne
-        verres_perso = df_verres[df_verres['pseudo'] == nom]
-        repas_perso = df_repas[df_repas['pseudo'] == nom] if not df_repas.empty else pd.DataFrame()
-
-        for t in axe_temps:
-            taux_total_t = 0.0
-            
-            for _, verre in verres_perso.iterrows():
-                t_drink = verre['created_at']
-                diff_heures = (t - t_drink).total_seconds() / 3600.0
-                
-                # Si le verre a été bu avant l'instant t
-                if diff_heures > 0:
-                    a_mange = False
-                    if not repas_perso.empty:
-                        # A-t-il mangé dans les 2 heures avant ce verre ?
-                        repas_avant = repas_perso[(repas_perso['created_at'] <= t_drink) & 
-                                                  (repas_perso['created_at'] >= t_drink - pd.Timedelta(hours=2))]
-                        if not repas_avant.empty:
-                            a_mange = True
-                    
-                    # Paramètres d'absorption
-                    t_pic = 1.5 if a_mange else 0.75 # 1h30 si mangé, 45min à jeun
-                    c_max = (verre['alcool_g'] / (poids * coef_diffusion)) * (0.8 if a_mange else 1.0)
-                    
-                    if diff_heures <= t_pic:
-                        # Phase de montée (absorption)
-                        taux_verre = c_max * (diff_heures / t_pic)
-                    else:
-                        # Phase de descente (élimination à 0.15 g/L/h)
-                        taux_verre = c_max - (0.15 * (diff_heures - t_pic))
-                    
-                    taux_total_t += max(0.0, taux_verre)
-            
-            taux_liste.append(taux_total_t)
-            
-        df_graphique[nom] = taux_liste
-
-    # Affichage des métriques actuelles
-    st.markdown("<h3 style='color: orange;'>📍 Taux d'alcoolémie actuel</h3>", unsafe_allow_html=True)
-    res_cols = st.columns(len(profils))
-    
-    # On cherche l'index le plus proche de "maintenant" pour afficher le taux
-    idx_maintenant = df_graphique.index.get_indexer([maintenant], method='nearest')[0]
-    
-    for i, nom in enumerate(profils.keys()):
+    if not verres_nom.empty:
+        dernier_verre = verres_nom['created_at'].max()
+        jours_sans = (maintenant - dernier_verre).days
         taux_actuel = df_graphique[nom].iloc[idx_maintenant]
-        couleur = "🟢" if taux_actuel < 0.2 else "🟠" if taux_actuel < 0.5 else "🔴"
-        with res_cols[i]: st.metric(label=nom, value=f"{taux_actuel:.2f} g/L", delta=couleur)
+        taux_max = df_graphique[nom].max()
+        
+        # Calcul heure de retour à jeun
+        if taux_actuel > 0.01:
+            heures_restantes = taux_actuel / 0.15
+            retour_zero = (maintenant + pd.Timedelta(hours=heures_restantes)).strftime("%H:%M")
+        else:
+            retour_zero = "À jeun"
+    else:
+        taux_actuel = 0.0
+        taux_max = 0.0
+        jours_sans = "∞"
+        retour_zero = "À jeun"
+        
+    donnees_tableau.append({
+        "Membre": nom,
+        "Taux Actuel (g/L)": f"{taux_actuel:.2f}",
+        "Taux Max (g/L)": f"{taux_max:.2f}",
+        "Jours sans alcool": jours_sans,
+        "Heure de sobriété (0 g/L)": retour_zero
+    })
 
-    # --- NOUVEAU GRAPHIQUE PLOTLY ---
+st.dataframe(pd.DataFrame(donnees_tableau), use_container_width=True, hide_index=True)
+
+# --- 3. GRAPHIQUE ---
+st.header("📊 3. Courbes d'alcoolémie")
+if not df_verres.empty:
     fig = go.Figure()
-    couleurs_lignes = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22']
+    couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22']
     
     for i, nom in enumerate(profils.keys()):
-        fig.add_trace(go.Scatter(
-            x=df_graphique.index, y=df_graphique[nom], 
-            mode='lines', name=nom, 
-            line=dict(width=3, color=couleurs_lignes[i % len(couleurs_lignes)])
-        ))
+        fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
 
-    # Ligne verticale pour l'heure actuelle
     fig.add_vline(x=maintenant, line_width=2, line_dash="dash", line_color="orange")
     fig.add_annotation(x=maintenant, y=df_graphique.max().max(), text="Maintenant", showarrow=False, xshift=40, font=dict(color="orange"))
 
-    fig.update_layout(
-        template="plotly_dark",
-        xaxis_title="Heure",
-        yaxis_title="Taux (g/L)",
-        hovermode="x unified",
-        margin=dict(l=20, r=20, t=30, b=20)
-    )
-    
+    fig.update_layout(template="plotly_dark", xaxis_title="Heure", yaxis_title="Taux (g/L)", hovermode="x unified", margin=dict(l=20, r=20, t=30, b=20))
     st.plotly_chart(fig, use_container_width=True)
-    
-    st.markdown("<h3 style='color: orange;'>📋 Historique des entrées</h3>", unsafe_allow_html=True)
-    st.dataframe(df_verres[['pseudo', 'boisson', 'alcool_g', 'created_at']].tail(10))
-
 else:
-    st.info("Aucune donnée disponible.")
+    st.info("Aucun graphique à afficher pour le moment.")
 
-# --- 4. ADMINISTRATION (SÉCURISÉE EN BAS) ---
-st.write("---")
-with st.expander("⚙️ Administration (Zone de danger)"):
-    st.write("⚠️ *Cette action effacera toutes les données de la soirée.*")
+# --- 4. HISTORIQUE ---
+st.header("📋 4. Historique des entrées")
+if not df_verres.empty:
+    st.dataframe(df_verres[['pseudo', 'boisson', 'alcool_g', 'created_at']].tail(15), hide_index=True)
+else:
+    st.write("Aucune consommation enregistrée.")
+
+st.divider()
+
+# --- 5. CONFIGURATION ÉQUIPE (Rétractable) ---
+with st.expander("⚙️ Gérer l'équipe (Ajuster poids & Ajouter invités)", expanded=False):
+    onglet_Ajusteur, tab_Ajouter = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité"])
+    with onglet_Ajusteur:
+        cols = st.columns(len(profils))
+        for i, (nom, info) in enumerate(profils.items()):
+            with cols[i]:
+                st.markdown(f"<h5 style='color: orange;'>{nom}</h5>", unsafe_allow_html=True)
+                nouveau_poids = st.number_input("Poids (kg)", min_value=40, max_value=150, value=info["poids"], key=f"poids_{nom}")
+                st.session_state.profils[nom]["poids"] = nouveau_poids
+    with tab_Ajouter:
+        c1, c2, c3 = st.columns(3)
+        with c1: nouveau_nom = st.text_input("Nom de l'invité")
+        with c2: nouveau_sexe = st.selectbox("Sexe", ["Homme", "Femme"])
+        with c3: nouveau_poids_inv = st.number_input("Poids invité (kg)", min_value=40, max_value=150, value=70)
+        if st.button("Ajouter à l'équipe"):
+            if nouveau_nom and nouveau_nom not in st.session_state.profils:
+                st.session_state.profils[nouveau_nom] = {"sexe": nouveau_sexe, "poids": nouveau_poids_inv}
+                st.success(f"✔️ {nouveau_nom} ajouté !")
+                st.rerun()
+
+# --- 6. ADMINISTRATION ---
+with st.expander("🚨 Zone de danger (Remise à zéro)", expanded=False):
+    st.write("⚠️ *Cette action effacera toutes les données de la base.*")
     with st.form("form_effacer"):
-        mdp = st.text_input("Mot de passe :", type="password")
-        valide = st.form_submit_button("🚨 TOUT EFFACER")
-        if valide:
+        mdp = st.text_input("Tapez le mot de passe :", type="password")
+        if st.form_submit_button("TOUT EFFACER"):
             if mdp == "lolo":
                 supabase.table("drinks").delete().neq("id", 0).execute()
                 supabase.table("meals").delete().neq("id", 0).execute()
