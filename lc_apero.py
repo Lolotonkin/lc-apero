@@ -19,7 +19,7 @@ st.markdown("""
     h1, h2, h3, p, span, label, div.stMarkdown { color: #FFFFFF !important; }
     h1, h2 { color: #FF9800 !important; font-weight: bold !important; }
     
-    /* Boutons et Inputs */
+    /* Boutons standards et Inputs */
     .stButton>button { background-color: #FF9800 !important; color: #000000 !important; font-weight: bold !important; border: 2px solid #FFFFFF !important; }
     .stNumberInput input, .stSelectbox div[data-baseweb="select"], .stTextInput input { background-color: #1A1A1A !important; color: #FFFFFF !important; border: 1px solid #FF9800 !important; }
     
@@ -27,12 +27,25 @@ st.markdown("""
     button[data-baseweb="tab"] { color: #FFFFFF !important; }
     button[data-baseweb="tab"][aria-selected="true"] { color: #FF9800 !important; border-bottom-color: #FF9800 !important; }
     
-    /* FIX CONTRASTE BLOC DE CODE (Lien copiable) */
-    div[data-testid="stCodeBlock"], 
-    div[data-testid="stCodeBlock"] pre, 
-    div[data-testid="stCodeBlock"] code { 
-        background-color: #1A1A1A !important; 
+    /* FIX CONTRASTE ADRESSE URL (st.code) */
+    div[data-testid="stCodeBlock"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; border-radius: 5px; }
+    div[data-testid="stCodeBlock"] pre, div[data-testid="stCodeBlock"] code, div[data-testid="stCodeBlock"] span { 
+        background-color: transparent !important; 
         color: #FF9800 !important; 
+        font-weight: bold !important;
+    }
+    
+    /* FIX CONTRASTE BOUTON WHATSAPP (st.link_button) */
+    div[data-testid="stLinkButton"] > a {
+        background-color: #FF9800 !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        border: 2px solid #FFFFFF !important;
+        text-decoration: none !important;
+    }
+    div[data-testid="stLinkButton"] p {
+        color: #000000 !important;
+        font-weight: bold !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -137,15 +150,17 @@ for nom, info in profils.items():
 st.title("🪳 Haggis et les cafards")
 
 # --- 0. ACCÈS ---
+APP_URL = "https://lc-apero-eqdne2pvte4wak5sawi8kf.streamlit.app"
+
 col_qr, col_texte = st.columns([1, 4])
 with col_qr:
-    img = qrcode.make("https://apero-app.streamlit.app") 
+    img = qrcode.make(APP_URL) 
     buf = io.BytesIO()
     img.save(buf, format='PNG')
     st.image(buf.getvalue(), width=100)
 with col_texte:
     st.markdown("<h3 style='color: orange;'>🔗 Accès à l'application</h3>", unsafe_allow_html=True)
-    st.code("https://apero-app.streamlit.app", language="text")
+    st.code(APP_URL, language="text")
 st.divider()
 
 # --- 1. DÉCLARATION ---
