@@ -157,21 +157,19 @@ else:
     with c3:
         Degre_Alcool = st.number_input("Degré d'alcool (° ou %)", min_value=0.0, max_value=100.0, value=5.0, step=0.5)
 
-    if st.button("Enregistrer le verre 💾"):
+  if st.button("Enregistrer le verre 💾"):
         try:
-            label_boisson = f"{Volume_ml}ml @ {Degre_Alcool}%"
-            # Assure-toi que 'type_boisson' correspond exactement au nom de ta colonne dans Supabase
+            # On adapte les noms aux colonnes réelles de ta table 'drinks'
             supabase.table("drinks").insert({
                 "pseudo": Qui, 
-                "type_boisson": label_boisson, 
-                "volume": Volume_ml, 
+                "boisson": f"{Volume_ml}ml @ {Degre_Alcool}%", # Correspond à ta colonne 'boisson'
+                "alcool_g": float(Volume_ml * (Degre_Alcool/100) * 0.8), # Correspond à ta colonne 'alcool_g'
                 "created_at": moment_actuel
             }).execute()
-            envoyer_alerte_whatsapp(Qui, label_boisson, est_repas=False)
-            st.success(f"🍹 Verre enregistré pour {Qui} ({label_boisson})")
+            st.success("Verre enregistré !")
             st.rerun()
         except Exception as e:
-            st.error(f"Erreur d'écriture Boisson : {e}")
+            st.error(f"Erreur : {e}")
 
 st.write("---")
 
