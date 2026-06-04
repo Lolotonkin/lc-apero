@@ -248,9 +248,27 @@ if boissons_nuageuses:
                             a_mange = True
                             break
                 
+                # --- CALCUL CORRIGÉ DE L'IMPACT DU REPAS ---
+            total_alcool_g = 0
+            for _, row in verres_passes.iterrows():
+                masse_alcool = row['alcool_g']
+                
+                a_mange = False
+                if not repas_passes.empty:
+                    # On cherche le repas le plus proche avant ce verre
+                    repas_candidats = repas_passes[repas_passes['created_at'] <= row['created_at']]
+                    if not repas_candidats.empty:
+                        dernier_repas = repas_candidats['created_at'].max()
+                        diff_heures = (row['created_at'] - dernier_repas).total_seconds() / 3600.0
+                        if 0 <= diff_heures <= 2.0:
+                            a_mange = True
+                
                 total_alcool_g += masse_alcool * 0.55 if a_mange else masse_alcool
             
+            # --- CALCUL DU TAUX ---
             heures_ecoulees = (t - debut_suivi).total_seconds() / 3600.0
+            # Le taux est la somme de l'alcool absorbé / (masse corporelle * coefficient) 
+            # moins l'élimination naturelle (0.15g/kg/h)
             taux_theorique = (total_alcool_g / (poids * coef_diffusion)) - (0.15 * heures_ecoulees)
             taux_liste.append(max(0.0, taux_theorique))
             
