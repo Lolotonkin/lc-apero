@@ -252,9 +252,21 @@ if boissons_nuageuses:
             
         df_graphique[nom] = taux_liste
 
+    # --- AFFICHAGE DES TAUX ACTUELS ---
+    st.subheader("📍 Taux d'alcoolémie actuel")
+    res_cols = st.columns(len(profils))
+    
+    for i, nom in enumerate(profils.keys()):
+        taux_actuel = df_graphique[nom].iloc[-1]
+        couleur = "🟢" if taux_actuel < 0.2 else "🟠" if taux_actuel < 0.5 else "🔴"
+        with res_cols[i]:
+            st.metric(label=nom, value=f"{taux_actuel:.2f} g/L", delta=couleur)
+
+    # --- GRAPHIQUE ET HISTORIQUE ---
     st.line_chart(df_graphique)
     
     st.subheader("📋 Historique des entrées")
     st.dataframe(df_verres[['pseudo', 'boisson', 'alcool_g', 'created_at']].tail(10))
+
 else:
     st.info("Aucune donnée disponible. Ajoutez une consommation pour générer les graphiques d'absorption.")
