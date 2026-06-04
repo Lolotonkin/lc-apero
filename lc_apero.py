@@ -228,34 +228,14 @@ if boissons_nuageuses:
             verres_passes = df_verres[(df_verres['pseudo'] == nom) & (df_verres['created_at'] <= t)]
             repas_passes = df_repas[(df_repas['pseudo'] == nom) & (df_repas['created_at'] <= t)] if not df_repas.empty else pd.DataFrame()
             
-            total_alcool_g = 0
-            for _, row in verres_passes.iterrows():
-                vol = row['alcool_g']
-                
-                try:
-                    string_degre = row['boisson'].split('@')[1].replace('%', '').strip()
-                    degre = float(string_degre) / 100.0
-                except Exception:
-                    degre = 0.05
-                    
-                masse_alcool = vol * degre * 0.8
-                
-                a_mange = False
-                if not repas_passes.empty:
-                    for _, r_row in repas_passes.iterrows():
-                        diff = (row['created_at'] - r_row['created_at']).total_seconds() / 3600.0
-                        if 0 <= diff <= 2.0:
-                            a_mange = True
-                            break
-                
-                # --- CALCUL CORRIGÉ DE L'IMPACT DU REPAS ---
+            # --- CALCUL UNIQUE ET CORRECT ---
             total_alcool_g = 0
             for _, row in verres_passes.iterrows():
                 masse_alcool = row['alcool_g']
                 
+                # Vérification repas
                 a_mange = False
                 if not repas_passes.empty:
-                    # On cherche le repas le plus proche avant ce verre
                     repas_candidats = repas_passes[repas_passes['created_at'] <= row['created_at']]
                     if not repas_candidats.empty:
                         dernier_repas = repas_candidats['created_at'].max()
@@ -267,9 +247,6 @@ if boissons_nuageuses:
             
             # --- CALCUL DU TAUX ---
             heures_ecoulees = (t - debut_suivi).total_seconds() / 3600.0
-            # Le taux est la somme de l'alcool absorbé / (masse corporelle * coefficient) 
-            # moins l'élimination naturelle (0.15g/kg/h)
-            # On soustrait 0.15g/L par heure, mais seulement après 30 minutes (0.5h) d'absorption
             taux_theorique = (total_alcool_g / (poids * coef_diffusion)) - (0.15 * max(0, heures_ecoulees - 0.5))
             taux_liste.append(max(0.0, taux_theorique))
             
