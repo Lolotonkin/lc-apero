@@ -4,27 +4,53 @@ import requests
 import pandas as pd
 import datetime
 
-# --- CONFIGURATION INITIALE & THÈME SOMBRE ---
+# --- CONFIGURATION INITIALE & THÈME HAUT CONTRASTE ---
 st.set_page_config(
     page_title="Haggis et les cafards 🪳", 
     layout="wide", 
     initial_sidebar_state="collapsed"
 )
 
-# Application d'un style sombre personnalisé pour l'interface
+# Style CSS forcé pour un contraste maximal (Blanc/Orange sur Noir)
 st.markdown("""
     <style>
+    /* Fond de l'application et texte principal */
     .stApp {
-        background-color: #121212;
-        color: #E0E0E0;
+        background-color: #000000 !important;
+        color: #FFFFFF !important;
     }
-    h1, h2, h3 {
+    
+    /* Titres principaux */
+    h1, h2, h3, p, span, label {
+        color: #FFFFFF !important;
+    }
+    h1, h2 {
         color: #FF9800 !important;
+        font-weight: bold !important;
     }
+    
+    /* Boutons */
     .stButton>button {
-        background-color: #FF9800;
-        color: black;
-        font-weight: bold;
+        background-color: #FF9800 !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        border: 2px solid #FFFFFF !important;
+    }
+    
+    /* Champs de saisie (Inputs, Selectbox) */
+    .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
+        border: 1px solid #FF9800 !important;
+    }
+    
+    /* Onglets (Tabs) */
+    button[data-baseweb="tab"] {
+        color: #FFFFFF !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #FF9800 !important;
+        border-bottom-color: #FF9800 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -148,7 +174,7 @@ else:
 
 st.write("---")
 
-# --- INTERFACE : 3. GRAPHIQUE & ALCOOLEMIE ---
+# --- INTERFACE : 3. GRAPHIC & ALCOOLEMIE ---
 st.header("📊 3. Évolution des courbes d'alcoolémie")
 
 if boissons_nuageuses:
@@ -178,16 +204,14 @@ if boissons_nuageuses:
             for _, row in verres_passes.iterrows():
                 vol = row['volume']
                 
-                # Extraction dynamique du degré depuis la chaîne stockée (ex: "250ml @ 5.0%")
                 try:
                     string_degre = row['type_boisson'].split('@')[1].replace('%', '').strip()
                     degre = float(string_degre) / 100.0
                 except Exception:
-                    degre = 0.05  # Valeur de secours par défaut (5%)
+                    degre = 0.05
                     
                 masse_alcool = vol * degre * 0.8
                 
-                # Impact du repas (image_8.png) : baisse du pic d'absorption de 45% si mangé dans les 2h avant
                 a_mange = False
                 if not repas_passes.empty:
                     for _, r_row in repas_passes.iterrows():
