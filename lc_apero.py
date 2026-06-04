@@ -268,18 +268,19 @@ if boissons_nuageuses:
     st.subheader("📋 Historique des entrées")
     st.dataframe(df_verres[['pseudo', 'boisson', 'alcool_g', 'created_at']].tail(10))
 
-# --- SECTION ADMINISTRATION ---
+    # --- SECTION ADMINISTRATION ---
     st.divider()
     with st.expander("⚙️ Administration"):
+        # 1. On crée le champ de saisie (il reste vide par défaut)
         mdp = st.text_input("Mot de passe pour réinitialiser la soirée", type="password")
         
+        # 2. Le code ci-dessous ne s'exécute QUE si le bouton est pressé
         if st.button("🚨 TOUT EFFACER (Données)"):
             if mdp == "lolo":
-                # Suppression de toutes les données dans Supabase
                 supabase.table("drinks").delete().neq("id", 0).execute()
                 supabase.table("repas").delete().neq("id", 0).execute()
                 st.success("La base a été remise à zéro.")
-                st.rerun()
+                st.rerun() # Recharge la page pour vider le graphique
             else:
                 st.error("Mot de passe incorrect.")
 else:
