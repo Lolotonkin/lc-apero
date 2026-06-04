@@ -183,15 +183,18 @@ st.header("📊 3. Évolution des courbes d'alcoolémie")
 
 if boissons_nuageuses:
     df_verres = pd.DataFrame(boissons_nuageuses)
-    df_verres['created_at'] = pd.to_datetime(df_verres['created_at'])
+    # On force la conversion en datetime sans fuseau horaire (tz-naive)
+    df_verres['created_at'] = pd.to_datetime(df_verres['created_at']).dt.tz_localize(None)
     
     df_repas = pd.DataFrame(repas_nuage) if repas_nuage else pd.DataFrame(columns=['pseudo', 'created_at'])
     if not df_repas.empty:
-        df_repas['created_at'] = pd.to_datetime(df_repas['created_at'])
+        df_repas['created_at'] = pd.to_datetime(df_repas['created_at']).dt.tz_localize(None)
         
     debut_suivi = df_verres['created_at'].min()
-    fin_suivi = datetime.datetime.now()
+    fin_suivi = datetime.datetime.now().replace(tzinfo=None) # On retire le fuseau ici aussi
     axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min')
+    
+    # ... le reste du code de calcul suit ici ...
     
     df_graphique = pd.DataFrame(index=axe_temps)
     
