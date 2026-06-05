@@ -75,14 +75,34 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
     try: requests.post(URL_WEBHOOK_WHATSAPP, json={"message": texte, "pseudo": pseudo})
     except: pass
 
-# --- SESSION & DONNÉES ---
+# --- CHARGEMENT DES PROFILS DEPUIS SUPABASE ---
+def charger_profils():
+    try:
+        rep = supabase.table("profils").select("*").execute()
+        if rep.data:
+            profils_db = {}
+            for p in rep.data:
+                profils_db[p['pseudo']] = {"sexe": p['sexe'], "poids": p['poids'], "id": p['id']}
+            return profils_db
+        return {}
+    except:
+        return {}
+
 if "profils" not in st.session_state:
-    st.session_state.profils = {
-        "Lolo'": {"sexe": "Homme", "poids": 75},
-        "Poums'": {"sexe": "Homme", "poids": 75},
-        "Nico'": {"sexe": "Homme", "poids": 75},
-        "Duj'": {"sexe": "Homme", "poids": 75}
-    }
+    db_profils = charger_profils()
+    # Si la table est vide (première fois), on insère l'équipe de base
+    if not db_profils:
+        defauts = [
+            {"pseudo": "Lolo'", "sexe": "Homme", "poids": 75},
+            {"pseudo": "Poums'", "sexe": "Homme", "poids": 75},
+            {"pseudo": "Nico'", "sexe": "Homme", "poids": 75},
+            {"pseudo": "Duj'", "sexe": "Homme", "poids": 75}
+        ]
+        supabase.table("profils").insert(defauts).execute()
+        st.session_state.profils = charger_profils()
+    else:
+        st.session_state.profils = db_profils
+
 profils = st.session_state.profils
 
 def charger_donnees():
@@ -97,7 +117,6 @@ boissons_nuageuses, repas_nuage = charger_donnees()
 # --- MOTEUR DE CALCUL MATHÉMATIQUE ---
 maintenant = pd.Timestamp.now(tz='Europe/Paris')
 
-# Fenêtre globale de calcul (12h en arrière pour capter tous les verres influents, et 8h dans le futur)
 debut_calcul = maintenant - pd.Timedelta(hours=12)
 fin_calcul = maintenant + pd.Timedelta(hours=8)
 axe_temps = pd.date_range(start=debut_calcul, end=fin_calcul, freq='5min', tz='Europe/Paris')
@@ -142,7 +161,6 @@ for nom, info in profils.items():
                     repas_valides = repas_perso[(repas_perso['created_at'] >= t_drink - pd.Timedelta(hours=3)) & (repas_perso['created_at'] <= t_drink + pd.Timedelta(hours=1))]
                     if not repas_valides.empty: a_mange = True
                 
-                # Modèle d'absorption
                 t_pic = 1.5 if a_mange else 0.75
                 bio_factor = 0.8 if a_mange else 1.0
                 c_max_theo = (verre['alcool_g'] / (poids * coef_diffusion)) * bio_factor
@@ -243,7 +261,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
 st.divider()
 
-# --- 3. GRAPHIQUE (FENÊTRE H-2 À H+6 VISUELLE) ---
+# --- 3. GRAPHIQUE ---
 st.header("📊 3. Courbes (Évolution)")
 if not df_verres.empty:
     fig = go.Figure()
@@ -255,18 +273,11 @@ if not df_verres.empty:
     fig.add_vline(x=maintenant, line_width=2, line_dash="dash", line_color="orange")
     fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L (Conduite)", annotation_position="top right")
 
-    # RESTRICTION DE LA VUE : Forçage absolu de l'axe X pour éviter le dézoom de Plotly
     vue_debut = (maintenant - pd.Timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
     vue_fin = (maintenant + pd.Timedelta(hours=6)).strftime('%Y-%m-%d %H:%M:%S')
 
-    fig.update_xaxes(
-        fixedrange=True, 
-        title="Heure", 
-        range=[vue_debut, vue_fin], 
-        autorange=False
-    )
+    fig.update_xaxes(fixedrange=True, title="Heure", range=[vue_debut, vue_fin], autorange=False)
     fig.update_yaxes(fixedrange=True, title="Taux (g/L)", rangemode="tozero")
-    
     fig.update_layout(template="plotly_dark", hovermode="x unified", margin=dict(l=20, r=20, t=30, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
     
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
@@ -283,7 +294,6 @@ df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant - pd.Timedelta(
 
 if not df_verres_recent.empty or not df_repas_recent.empty:
     col_hist1, col_hist2 = st.columns(2)
-    
     with col_hist1:
         st.subheader("🍺 Verres récents")
         for _, row in df_verres_recent.iterrows():
@@ -294,7 +304,6 @@ if not df_verres_recent.empty or not df_repas_recent.empty:
             if c4.button("❌", key=f"del_drink_{row['id']}"):
                 supabase.table("drinks").delete().eq("id", row['id']).execute()
                 st.rerun()
-
     with col_hist2:
         st.subheader("🍽️ Repas récents")
         for _, row in df_repas_recent.iterrows():
@@ -323,9 +332,13 @@ with st.expander("⚙️ Gérer l'équipe (Ajuster poids & Ajouter invités)", e
             
             submit_poids = st.form_submit_button("Enregistrer les poids 💾")
             if submit_poids:
+                # Mise à jour dans Supabase ET dans la session
                 for nom in profils.keys():
-                    st.session_state.profils[nom]["poids"] = nouveaux_poids[nom]
-                st.success("Poids mis à jour avec succès !")
+                    nouveau_p = nouveaux_poids[nom]
+                    pid = profils[nom]["id"]
+                    supabase.table("profils").update({"poids": nouveau_p}).eq("id", pid).execute()
+                    st.session_state.profils[nom]["poids"] = nouveau_p
+                st.success("Poids mis à jour de façon permanente !")
                 st.rerun()
                 
     with tab_Ajouter:
@@ -335,8 +348,10 @@ with st.expander("⚙️ Gérer l'équipe (Ajuster poids & Ajouter invités)", e
         with c3: nouveau_poids_inv = st.number_input("Poids invité (kg)", min_value=40, max_value=150, value=70)
         if st.button("Ajouter à l'équipe"):
             if nouveau_nom and nouveau_nom not in st.session_state.profils:
-                st.session_state.profils[nouveau_nom] = {"sexe": nouveau_sexe, "poids": nouveau_poids_inv}
-                st.success(f"✔️ {nouveau_nom} ajouté !")
+                # Ajout direct dans Supabase
+                supabase.table("profils").insert({"pseudo": nouveau_nom, "sexe": nouveau_sexe, "poids": nouveau_poids_inv}).execute()
+                st.success(f"✔️ {nouveau_nom} ajouté de façon permanente !")
+                del st.session_state.profils # Force le rechargement
                 st.rerun()
 
 # --- 6. ADMINISTRATION ---
@@ -344,11 +359,18 @@ with st.expander("🚨 Zone de danger (Remise à zéro)", expanded=False):
     st.write("⚠️ *Cette action effacera toutes les données de la base.*")
     with st.form("form_effacer"):
         mdp = st.text_input("Tapez le mot de passe :", type="password")
-        if st.form_submit_button("TOUT EFFACER"):
+        choix_effacer = st.radio("Que voulez-vous effacer ?", ["Seulement les verres et repas", "TOUT (Verres, Repas ET remettre les profils à zéro)"])
+        
+        if st.form_submit_button("EXÉCUTER"):
             if mdp == "lolo":
                 supabase.table("drinks").delete().neq("id", 0).execute()
                 supabase.table("meals").delete().neq("id", 0).execute()
-                st.success("Données effacées.")
+                if "TOUT" in choix_effacer:
+                    supabase.table("profils").delete().neq("id", 0).execute()
+                    del st.session_state.profils
+                    st.success("Données et profils effacés. L'équipe de base reviendra au rafraîchissement.")
+                else:
+                    st.success("Verres et repas effacés. Les poids personnalisés sont conservés.")
                 st.rerun()
             else:
                 st.error("Mot de passe incorrect.")
