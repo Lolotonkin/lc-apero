@@ -96,9 +96,11 @@ boissons_nuageuses, repas_nuage = charger_donnees()
 
 # --- MOTEUR DE CALCUL MATHÉMATIQUE ---
 maintenant = pd.Timestamp.now(tz='Europe/Paris')
-debut_suivi = maintenant - pd.Timedelta(hours=12) # On calcule sur les 12 dernières heures
-fin_suivi = maintenant + pd.Timedelta(hours=8)
-axe_temps = pd.date_range(start=debut_suivi, end=fin_suivi, freq='5min', tz='Europe/Paris')
+
+# Fenêtre globale de calcul (12h en arrière pour capter tous les verres influents, et 8h dans le futur)
+debut_calcul = maintenant - pd.Timedelta(hours=12)
+fin_calcul = maintenant + pd.Timedelta(hours=8)
+axe_temps = pd.date_range(start=debut_calcul, end=fin_calcul, freq='5min', tz='Europe/Paris')
 
 def clean_tz(series):
     dt = pd.to_datetime(series)
@@ -213,7 +215,6 @@ for i, nom in enumerate(profils.keys()):
     taux_actuel = df_graphique[nom].iloc[idx_maintenant]
     taux_max = df_graphique[nom].max()
     
-    # Calcul des heures (0g/L et Conduite <0.5g/L)
     donnees_futures = df_graphique[nom].loc[maintenant:]
     
     # 0g/L absolu
@@ -227,7 +228,6 @@ for i, nom in enumerate(profils.keys()):
     if donnees_futures.max() < 0.5:
         heure_conduite = "Maintenant ✅"
     else:
-        # On cherche le moment où ça passe sous 0.5 APRÈS le pic
         heure_pic = donnees_futures.idxmax()
         donnees_apres_pic = donnees_futures.loc[heure_pic:]
         temps_conduite = donnees_apres_pic[donnees_apres_pic < 0.5]
@@ -248,7 +248,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
 st.divider()
 
-# --- 3. GRAPHIQUE ---
+# --- 3. GRAPHIQUE (FENÊTRE H-2 À H+6 VISUELLE) ---
 st.header("📊 3. Courbes (Évolution)")
 if not df_verres.empty:
     fig = go.Figure()
@@ -262,8 +262,16 @@ if not df_verres.empty:
     # Ligne limite légale
     fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L (Conduite)", annotation_position="top right")
 
-    # fixedrange=True bloque le zoom tactile et permet au doigt de glisser la page
-    fig.update_xaxes(fixedrange=True, title="Heure")
+    # RESTRICTION DE LA VUE : Forçage absolu de l'axe X pour éviter le dézoom de Plotly
+    vue_debut = (maintenant - pd.Timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
+    vue_fin = (maintenant + pd.Timedelta(hours=6)).strftime('%Y-%m-%d %H:%M:%S')
+
+    fig.update_xaxes(
+        fixedrange=True, 
+        title="Heure", 
+        range=[vue_debut, vue_fin], 
+        autorange=False  # C'est LA ligne magique qui empêche Plotly de prendre ses propres décisions
+    )
     fig.update_yaxes(fixedrange=True, title="Taux (g/L)", rangemode="tozero")
     
     fig.update_layout(template="plotly_dark", hovermode="x unified", margin=dict(l=20, r=20, t=30, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
@@ -277,7 +285,6 @@ st.divider()
 # --- 4. HISTORIQUE & SUPPRESSION ---
 st.header("📋 4. Historique (12 dernières heures)")
 
-# On filtre les dataframes pour ne garder que le récent
 df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant - pd.Timedelta(hours=12))].sort_values(by='created_at', ascending=False)
 df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant - pd.Timedelta(hours=12))].sort_values(by='created_at', ascending=False)
 
@@ -313,7 +320,6 @@ st.divider()
 with st.expander("⚙️ Gérer l'équipe (Ajuster poids & Ajouter invités)", expanded=False):
     onglet_Ajusteur, tab_Ajouter = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité"])
     with onglet_Ajusteur:
-        # Utilisation d'un formulaire pour forcer l'enregistrement au clic sur le bouton
         with st.form("form_poids"):
             cols = st.columns(len(profils))
             nouveaux_poids = {}
