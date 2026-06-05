@@ -75,7 +75,7 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
     try: requests.post(URL_WEBHOOK_WHATSAPP, json={"message": texte, "pseudo": pseudo})
     except: pass
 
-# --- SESSION & DONNÉES (Gestion persistante des poids) ---
+# --- SESSION & DONNÉES ---
 if "profils" not in st.session_state:
     st.session_state.profils = {
         "Lolo'": {"sexe": "Homme", "poids": 75},
@@ -84,9 +84,6 @@ if "profils" not in st.session_state:
         "Duj'": {"sexe": "Homme", "poids": 75}
     }
 profils = st.session_state.profils
-
-def update_poids_callback(nom_p):
-    st.session_state.profils[nom_p]["poids"] = st.session_state[f"input_poids_{nom_p}"]
 
 def charger_donnees():
     try:
@@ -316,11 +313,21 @@ st.divider()
 with st.expander("⚙️ Gérer l'équipe (Ajuster poids & Ajouter invités)", expanded=False):
     onglet_Ajusteur, tab_Ajouter = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité"])
     with onglet_Ajusteur:
-        cols = st.columns(len(profils))
-        for i, (nom, info) in enumerate(profils.items()):
-            with cols[i]:
-                st.markdown(f"<h5 style='color: orange;'>{nom}</h5>", unsafe_allow_html=True)
-                st.number_input("Poids (kg)", min_value=40, max_value=150, value=info["poids"], key=f"input_poids_{nom}", on_change=update_poids_callback, args=(nom,))
+        # Utilisation d'un formulaire pour forcer l'enregistrement au clic sur le bouton
+        with st.form("form_poids"):
+            cols = st.columns(len(profils))
+            nouveaux_poids = {}
+            for i, (nom, info) in enumerate(profils.items()):
+                with cols[i]:
+                    st.markdown(f"<h5 style='color: orange;'>{nom}</h5>", unsafe_allow_html=True)
+                    nouveaux_poids[nom] = st.number_input("Poids (kg)", min_value=40, max_value=150, value=info["poids"], key=f"input_poids_{nom}")
+            
+            submit_poids = st.form_submit_button("Enregistrer les poids 💾")
+            if submit_poids:
+                for nom in profils.keys():
+                    st.session_state.profils[nom]["poids"] = nouveaux_poids[nom]
+                st.success("Poids mis à jour avec succès !")
+                st.rerun()
                 
     with tab_Ajouter:
         c1, c2, c3 = st.columns(3)
