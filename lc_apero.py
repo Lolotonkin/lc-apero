@@ -139,7 +139,6 @@ for nom, info in profils.items():
             if diff_heures >= 0:
                 a_mange = False
                 if not repas_perso.empty:
-                    # Repas pris entre 3h avant et 1h après le verre
                     repas_valides = repas_perso[(repas_perso['created_at'] >= t_drink - pd.Timedelta(hours=3)) & (repas_perso['created_at'] <= t_drink + pd.Timedelta(hours=1))]
                     if not repas_valides.empty: a_mange = True
                 
@@ -151,10 +150,8 @@ for nom, info in profils.items():
                 
                 if c_pic > 0:
                     if diff_heures <= t_pic: 
-                        # Phase de montée
                         taux_verre = c_pic * (diff_heures / t_pic)
                     else: 
-                        # Phase d'élimination
                         taux_verre = c_pic - (0.15 * (diff_heures - t_pic))
                     taux_total_t += max(0.0, taux_verre)
                     
@@ -217,14 +214,12 @@ for i, nom in enumerate(profils.keys()):
     
     donnees_futures = df_graphique[nom].loc[maintenant:]
     
-    # 0g/L absolu
     if taux_actuel > 0.01 or donnees_futures.max() > 0.01:
         temps_sobre = donnees_futures[donnees_futures <= 0.01]
         retour_zero = temps_sobre.index[0].strftime("%H:%M") if not temps_sobre.empty else "Demain"
     else:
         retour_zero = "À jeun"
         
-    # Conduite (< 0.5g/L)
     if donnees_futures.max() < 0.5:
         heure_conduite = "Maintenant ✅"
     else:
@@ -257,9 +252,7 @@ if not df_verres.empty:
     for i, nom in enumerate(profils.keys()):
         fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
 
-    # Ligne de temps actuel
     fig.add_vline(x=maintenant, line_width=2, line_dash="dash", line_color="orange")
-    # Ligne limite légale
     fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L (Conduite)", annotation_position="top right")
 
     # RESTRICTION DE LA VUE : Forçage absolu de l'axe X pour éviter le dézoom de Plotly
@@ -270,7 +263,7 @@ if not df_verres.empty:
         fixedrange=True, 
         title="Heure", 
         range=[vue_debut, vue_fin], 
-        autorange=False  # C'est LA ligne magique qui empêche Plotly de prendre ses propres décisions
+        autorange=False
     )
     fig.update_yaxes(fixedrange=True, title="Taux (g/L)", rangemode="tozero")
     
@@ -359,3 +352,16 @@ with st.expander("🚨 Zone de danger (Remise à zéro)", expanded=False):
                 st.rerun()
             else:
                 st.error("Mot de passe incorrect.")
+
+st.divider()
+
+# --- 7. MENTIONS LÉGALES & PRÉVENTION ---
+st.markdown("""
+    <div style='text-align: center; color: #888888; font-size: 11px; margin-top: 30px; padding-bottom: 30px; line-height: 1.5;'>
+        ⚠️ <b>AVERTISSEMENT</b> : Cette application est un outil de simulation basé sur des calculs théoriques. 
+        Les taux d'alcoolémie affichés sont purement indicatifs et n'ont aucune valeur légale. Ils ne remplacent en aucun cas un éthylotest officiel. 
+        Le métabolisme de chacun variant selon de nombreux facteurs (fatigue, stress, médicaments, vitesse de consommation), <b>en cas de doute, ne prenez jamais le volant.</b>
+        <br><br>
+        <i>« L'abus d'alcool est dangereux pour la santé, à consommer avec modération. »</i>
+    </div>
+    """, unsafe_allow_html=True)
