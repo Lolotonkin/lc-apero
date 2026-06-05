@@ -90,13 +90,12 @@ def charger_profils():
 
 if "profils" not in st.session_state:
     db_profils = charger_profils()
-    # Si la table est vide (première fois), on insère l'équipe de base
     if not db_profils:
         defauts = [
-            {"pseudo": "Lolo'", "sexe": "Homme", "poids": 75},
-            {"pseudo": "Poums'", "sexe": "Homme", "poids": 75},
-            {"pseudo": "Nico'", "sexe": "Homme", "poids": 75},
-            {"pseudo": "Duj'", "sexe": "Homme", "poids": 75}
+            {"pseudo": "Lolo", "sexe": "Homme", "poids": 75},
+            {"pseudo": "Poums", "sexe": "Homme", "poids": 75},
+            {"pseudo": "Nico", "sexe": "Homme", "poids": 75},
+            {"pseudo": "Duj", "sexe": "Homme", "poids": 75}
         ]
         supabase.table("profils").insert(defauts).execute()
         st.session_state.profils = charger_profils()
@@ -158,6 +157,7 @@ for nom, info in profils.items():
             if diff_heures >= 0:
                 a_mange = False
                 if not repas_perso.empty:
+                    # Recherche d'un repas entre 3h avant le verre et 1h après
                     repas_valides = repas_perso[(repas_perso['created_at'] >= t_drink - pd.Timedelta(hours=3)) & (repas_perso['created_at'] <= t_drink + pd.Timedelta(hours=1))]
                     if not repas_valides.empty: a_mange = True
                 
@@ -223,49 +223,52 @@ st.divider()
 
 # --- 2. TABLEAU DE BORD INSTANTANÉ ---
 st.header("📍 2. Tableau de bord")
-cols_dashboard = st.columns(len(profils))
-texte_whatsapp = "🪳 *Haggis et les cafards — Point AlcooSuivi* 🍻\n\n"
+if not profils:
+    st.warning("Aucun profil disponible.")
+else:
+    cols_dashboard = st.columns(len(profils))
+    texte_whatsapp = "🪳 *Haggis et les cafards — Point AlcooSuivi* 🍻\n\n"
 
-for i, nom in enumerate(profils.keys()):
-    taux_actuel = df_graphique[nom].iloc[idx_maintenant]
-    taux_max = df_graphique[nom].max()
-    
-    donnees_futures = df_graphique[nom].loc[maintenant:]
-    
-    if taux_actuel > 0.01 or donnees_futures.max() > 0.01:
-        temps_sobre = donnees_futures[donnees_futures <= 0.01]
-        retour_zero = temps_sobre.index[0].strftime("%H:%M") if not temps_sobre.empty else "Demain"
-    else:
-        retour_zero = "À jeun"
+    for i, nom in enumerate(profils.keys()):
+        taux_actuel = df_graphique[nom].iloc[idx_maintenant]
+        taux_max = df_graphique[nom].max()
         
-    if donnees_futures.max() < 0.5:
-        heure_conduite = "Maintenant ✅"
-    else:
-        heure_pic = donnees_futures.idxmax()
-        donnees_apres_pic = donnees_futures.loc[heure_pic:]
-        temps_conduite = donnees_apres_pic[donnees_apres_pic < 0.5]
-        heure_conduite = temps_conduite.index[0].strftime("%H:%M") if not temps_conduite.empty else "Trop tard 🛑"
-
-    with cols_dashboard[i]:
-        st.markdown(f"#### {nom}")
-        st.metric(label="Taux Actuel", value=f"{taux_actuel:.2f} g/L")
-        st.markdown(f"**Max projeté :** {taux_max:.2f} g/L")
-        st.markdown(f"**🚗 Conduite (<0.5) :** {heure_conduite}")
-        st.markdown(f"**💧 À jeun (0.0) :** {retour_zero}")
+        donnees_futures = df_graphique[nom].loc[maintenant:]
         
-    texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f}g/L (Max: {taux_max:.2f}) — 🚗 Conduite: {heure_conduite}\n"
+        if taux_actuel > 0.01 or donnees_futures.max() > 0.01:
+            temps_sobre = donnees_futures[donnees_futures <= 0.01]
+            retour_zero = temps_sobre.index[0].strftime("%H:%M") if not temps_sobre.empty else "Demain"
+        else:
+            retour_zero = "À jeun"
+            
+        if donnees_futures.max() < 0.5:
+            heure_conduite = "Maintenant ✅"
+        else:
+            heure_pic = donnees_futures.idxmax()
+            donnees_apres_pic = donnees_futures.loc[heure_pic:]
+            temps_conduite = donnees_apres_pic[donnees_apres_pic < 0.5]
+            heure_conduite = temps_conduite.index[0].strftime("%H:%M") if not temps_conduite.empty else "Trop tard 🛑"
 
-texte_wa_encode = urllib.parse.quote(texte_whatsapp)
-lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
-st.markdown("<br>", unsafe_allow_html=True)
-st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
+        with cols_dashboard[i % len(cols_dashboard)]:
+            st.markdown(f"#### {nom}")
+            st.metric(label="Taux Actuel", value=f"{taux_actuel:.2f} g/L")
+            st.markdown(f"**Max projeté :** {taux_max:.2f} g/L")
+            st.markdown(f"**🚗 Conduite (<0.5) :** {heure_conduite}")
+            st.markdown(f"**💧 À jeun (0.0) :** {retour_zero}")
+            
+        texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f}g/L (Max: {taux_max:.2f}) — 🚗 Conduite: {heure_conduite}\n"
+
+    texte_wa_encode = urllib.parse.quote(texte_whatsapp)
+    lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
 st.divider()
 
 # --- 3. GRAPHIQUE ---
 st.header("📊 3. Courbes (Évolution)")
-if not df_verres.empty:
+if not df_verres.empty and profils:
     fig = go.Figure()
-    couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22']
+    couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#34495e']
     
     for i, nom in enumerate(profils.keys()):
         fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
@@ -282,7 +285,7 @@ if not df_verres.empty:
     
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 else:
-    st.info("Aucun verre n'a encore été enregistré pour modéliser une courbe.")
+    st.info("Aucun verre n'a encore été enregistré ou aucun profil défini pour modéliser une courbe.")
 
 st.divider()
 
@@ -319,25 +322,25 @@ else:
 st.divider()
 
 # --- 5. CONFIGURATION ÉQUIPE ---
-with st.expander("⚙️ Gérer l'équipe (Ajuster poids & Ajouter invités)", expanded=False):
-    onglet_Ajusteur, tab_Ajouter = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité"])
+with st.expander("⚙️ Gérer l'équipe (Poids, Ajouter, Supprimer)", expanded=False):
+    onglet_Ajusteur, tab_Ajouter, tab_Supprimer = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité", "🗑️ Supprimer un profil"])
+    
     with onglet_Ajusteur:
         with st.form("form_poids"):
-            cols = st.columns(len(profils))
+            cols = st.columns(len(profils) if len(profils) > 0 else 1)
             nouveaux_poids = {}
             for i, (nom, info) in enumerate(profils.items()):
-                with cols[i]:
+                with cols[i % len(cols)]:
                     st.markdown(f"<h5 style='color: orange;'>{nom}</h5>", unsafe_allow_html=True)
                     nouveaux_poids[nom] = st.number_input("Poids (kg)", min_value=40, max_value=150, value=info["poids"], key=f"input_poids_{nom}")
             
             submit_poids = st.form_submit_button("Enregistrer les poids 💾")
             if submit_poids:
-                # Mise à jour dans Supabase ET dans la session
                 for nom in profils.keys():
                     nouveau_p = nouveaux_poids[nom]
                     pid = profils[nom]["id"]
                     supabase.table("profils").update({"poids": nouveau_p}).eq("id", pid).execute()
-                    st.session_state.profils[nom]["poids"] = nouveau_p
+                del st.session_state.profils # Force le rafraîchissement au rerun
                 st.success("Poids mis à jour de façon permanente !")
                 st.rerun()
                 
@@ -347,12 +350,22 @@ with st.expander("⚙️ Gérer l'équipe (Ajuster poids & Ajouter invités)", e
         with c2: nouveau_sexe = st.selectbox("Sexe", ["Homme", "Femme"])
         with c3: nouveau_poids_inv = st.number_input("Poids invité (kg)", min_value=40, max_value=150, value=70)
         if st.button("Ajouter à l'équipe"):
-            if nouveau_nom and nouveau_nom not in st.session_state.profils:
-                # Ajout direct dans Supabase
+            if nouveau_nom and nouveau_nom not in profils:
                 supabase.table("profils").insert({"pseudo": nouveau_nom, "sexe": nouveau_sexe, "poids": nouveau_poids_inv}).execute()
                 st.success(f"✔️ {nouveau_nom} ajouté de façon permanente !")
-                del st.session_state.profils # Force le rechargement
+                del st.session_state.profils 
                 st.rerun()
+
+    with tab_Supprimer:
+        if profils:
+            nom_a_supprimer = st.selectbox("Qui voulez-vous supprimer ?", list(profils.keys()))
+            if st.button("Supprimer ce profil ❌"):
+                supabase.table("profils").delete().eq("id", profils[nom_a_supprimer]["id"]).execute()
+                st.success(f"{nom_a_supprimer} a été retiré de l'équipe.")
+                del st.session_state.profils # On force la session à recharger la BDD
+                st.rerun()
+        else:
+            st.info("Aucun profil à supprimer.")
 
 # --- 6. ADMINISTRATION ---
 with st.expander("🚨 Zone de danger (Remise à zéro)", expanded=False):
@@ -367,7 +380,8 @@ with st.expander("🚨 Zone de danger (Remise à zéro)", expanded=False):
                 supabase.table("meals").delete().neq("id", 0).execute()
                 if "TOUT" in choix_effacer:
                     supabase.table("profils").delete().neq("id", 0).execute()
-                    del st.session_state.profils
+                    if "profils" in st.session_state:
+                        del st.session_state.profils
                     st.success("Données et profils effacés. L'équipe de base reviendra au rafraîchissement.")
                 else:
                     st.success("Verres et repas effacés. Les poids personnalisés sont conservés.")
