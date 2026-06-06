@@ -44,8 +44,8 @@ st.markdown("""
         background-color: #FF9800 !important; 
         color: #000000 !important; 
         font-weight: bold !important; 
-        border: 2px solid #FFFFFF !important; 
         text-decoration: none !important;
+        border: 2px solid #FFFFFF !important;
     }
     
     /* Expanders (Zone de danger, Gérer l'équipe) */
@@ -113,12 +113,16 @@ def charger_donnees():
 
 boissons_nuageuses, repas_nuage = charger_donnees()
 
-# --- MOTEUR DE CALCUL MATHÉMATIQUE ---
+# --- MOTEUR DE CALCUL MATHÉMATIQUE (CORRIGÉ & ALIGNÉ) ---
 maintenant = pd.Timestamp.now(tz='Europe/Paris')
+maintenant_arrondi = maintenant.floor('5min')
 
-debut_calcul = maintenant - pd.Timedelta(hours=12)
-fin_calcul = maintenant + pd.Timedelta(hours=8)
+debut_calcul = maintenant_arrondi - pd.Timedelta(hours=12)
+fin_calcul = maintenant_arrondi + pd.Timedelta(hours=8)
 axe_temps = pd.date_range(start=debut_calcul, end=fin_calcul, freq='5min', tz='Europe/Paris')
+
+PENTE_ELIMINATION = 0.15  
+PENTE_ELIMINATION_5MIN = PENTE_ELIMINATION * (5 / 60)
 
 def clean_tz(series):
     dt = pd.to_datetime(series)
@@ -138,7 +142,7 @@ else:
     df_repas = pd.DataFrame(columns=['id', 'pseudo', 'created_at'])
 
 df_graphique = pd.DataFrame(index=axe_temps)
-idx_maintenant = df_graphique.index.get_indexer([maintenant], method='nearest')[0]
+idx_maintenant = df_graphique.index.get_indexer([maintenant_arrondi], method='nearest')[0]
 
 for nom, info in profils.items():
     poids = info["poids"]
@@ -148,32 +152,54 @@ for nom, info in profils.items():
     verres_perso = df_verres[df_verres['pseudo'] == nom] if not df_verres.empty else pd.DataFrame()
     repas_perso = df_repas[df_repas['pseudo'] == nom] if not df_repas.empty else pd.DataFrame()
 
-    for t in axe_temps:
-        taux_total_t = 0.0
+    t_start_sim = debut_calcul
+    if not verres_perso.empty:
+        premier_verre = verres_perso['created_at'].min().floor('5min')
+        if premier_verre < t_start_sim:
+            t_start_sim = premier_verre
+            
+    axe_complet = pd.date_range(start=t_start_sim, end=fin_calcul, freq='5min', tz='Europe/Paris')
+    taux_dict = {}
+    taux_courant = 0.0
+    
+    for t in axe_complet:
+        apport_5min = 0.0
+        
         for _, verre in verres_perso.iterrows():
             t_drink = verre['created_at']
-            diff_heures = (t - t_drink).total_seconds() / 3600.0
+            diff_heures_debut = (t - pd.Timedelta(minutes=5) - t_drink).total_seconds() / 3600.0
+            diff_heures_fin = (t - t_drink).total_seconds() / 3600.0
             
-            if diff_heures >= 0:
+            if diff_heures_fin > 0:
                 a_mange = False
                 if not repas_perso.empty:
-                    # Recherche d'un repas entre 3h avant le verre et 1h après
                     repas_valides = repas_perso[(repas_perso['created_at'] >= t_drink - pd.Timedelta(hours=3)) & (repas_perso['created_at'] <= t_drink + pd.Timedelta(hours=1))]
                     if not repas_valides.empty: a_mange = True
-                
-                t_pic = 1.5 if a_mange else 0.75
+                    
+                t_pic = 1.0 if a_mange else 0.5 
                 bio_factor = 0.8 if a_mange else 1.0
                 c_max_theo = (verre['alcool_g'] / (poids * coef_diffusion)) * bio_factor
-                c_pic = c_max_theo - (0.15 * t_pic)
                 
-                if c_pic > 0:
-                    if diff_heures <= t_pic: 
-                        taux_verre = c_pic * (diff_heures / t_pic)
-                    else: 
-                        taux_verre = c_pic - (0.15 * (diff_heures - t_pic))
-                    taux_total_t += max(0.0, taux_verre)
+                if diff_heures_debut < t_pic:
+                    t_deb_calc = max(0.0, diff_heures_debut)
+                    t_fin_calc = min(t_pic, diff_heures_fin)
                     
-        taux_liste.append(taux_total_t)
+                    taux_deb = c_max_theo * (t_deb_calc / t_pic)
+                    taux_fin = c_max_theo * (t_fin_calc / t_pic)
+                    
+                    apport_5min += max(0.0, taux_fin - taux_deb)
+
+        taux_courant += apport_5min
+        
+        if apport_5min == 0 and taux_courant > 0:
+            taux_courant -= PENTE_ELIMINATION_5MIN
+            
+        taux_courant = max(0.0, taux_courant)
+        taux_dict[t] = taux_courant
+        
+    for t in axe_temps:
+        taux_liste.append(taux_dict.get(t, 0.0))
+        
     df_graphique[nom] = taux_liste
 
 # ==========================================
@@ -209,8 +235,8 @@ if "repas" in choix_type.lower():
 else:
     c1, c2, c3 = st.columns(3)
     with c1: Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
-    with c2: Volume_ml = st.number_input("Volume (ml)", min_value=10, max_value=1000, value=250, step=10)
-    with c3: Degre_Alcool = st.number_input("Degré d'alcool (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.5)
+    with c2: Volume_ml = st.number_input("Volume (ml)", min_value=10, max_value=2000, value=250, step=10)
+    with c3: Degre_Alcool = st.number_input("Degré d'alcool (%)", min_value=0.5, max_value=90.0, value=5.0, step=0.5)
 
     if st.button("Enregistrer le verre 💾"):
         boisson_label = f"{Volume_ml}ml @ {Degre_Alcool}%"
@@ -233,7 +259,7 @@ else:
         taux_actuel = df_graphique[nom].iloc[idx_maintenant]
         taux_max = df_graphique[nom].max()
         
-        donnees_futures = df_graphique[nom].loc[maintenant:]
+        donnees_futures = df_graphique[nom].loc[maintenant_arrondi:]
         
         if taux_actuel > 0.01 or donnees_futures.max() > 0.01:
             temps_sobre = donnees_futures[donnees_futures <= 0.01]
@@ -273,11 +299,11 @@ if not df_verres.empty and profils:
     for i, nom in enumerate(profils.keys()):
         fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
 
-    fig.add_vline(x=maintenant, line_width=2, line_dash="dash", line_color="orange")
+    fig.add_vline(x=maintenant_arrondi, line_width=2, line_dash="dash", line_color="orange")
     fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L (Conduite)", annotation_position="top right")
 
-    vue_debut = (maintenant - pd.Timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
-    vue_fin = (maintenant + pd.Timedelta(hours=6)).strftime('%Y-%m-%d %H:%M:%S')
+    vue_debut = (maintenant_arrondi - pd.Timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
+    vue_fin = (maintenant_arrondi + pd.Timedelta(hours=6)).strftime('%Y-%m-%d %H:%M:%S')
 
     fig.update_xaxes(fixedrange=True, title="Heure", range=[vue_debut, vue_fin], autorange=False)
     fig.update_yaxes(fixedrange=True, title="Taux (g/L)", rangemode="tozero")
@@ -286,14 +312,13 @@ if not df_verres.empty and profils:
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 else:
     st.info("Aucun verre n'a encore été enregistré ou aucun profil défini pour modéliser une courbe.")
-
 st.divider()
 
 # --- 4. HISTORIQUE & SUPPRESSION ---
 st.header("📋 4. Historique (12 dernières heures)")
 
-df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant - pd.Timedelta(hours=12))].sort_values(by='created_at', ascending=False)
-df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant - pd.Timedelta(hours=12))].sort_values(by='created_at', ascending=False)
+df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=12))].sort_values(by='created_at', ascending=False)
+df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=12))].sort_values(by='created_at', ascending=False)
 
 if not df_verres_recent.empty or not df_repas_recent.empty:
     col_hist1, col_hist2 = st.columns(2)
@@ -318,7 +343,6 @@ if not df_verres_recent.empty or not df_repas_recent.empty:
                 st.rerun()
 else:
     st.write("Aucune entrée récente.")
-
 st.divider()
 
 # --- 5. CONFIGURATION ÉQUIPE ---
@@ -340,7 +364,7 @@ with st.expander("⚙️ Gérer l'équipe (Poids, Ajouter, Supprimer)", expanded
                     nouveau_p = nouveaux_poids[nom]
                     pid = profils[nom]["id"]
                     supabase.table("profils").update({"poids": nouveau_p}).eq("id", pid).execute()
-                del st.session_state.profils # Force le rafraîchissement au rerun
+                del st.session_state.profils
                 st.success("Poids mis à jour de façon permanente !")
                 st.rerun()
                 
@@ -362,7 +386,7 @@ with st.expander("⚙️ Gérer l'équipe (Poids, Ajouter, Supprimer)", expanded
             if st.button("Supprimer ce profil ❌"):
                 supabase.table("profils").delete().eq("id", profils[nom_a_supprimer]["id"]).execute()
                 st.success(f"{nom_a_supprimer} a été retiré de l'équipe.")
-                del st.session_state.profils # On force la session à recharger la BDD
+                del st.session_state.profils
                 st.rerun()
         else:
             st.info("Aucun profil à supprimer.")
@@ -388,7 +412,6 @@ with st.expander("🚨 Zone de danger (Remise à zéro)", expanded=False):
                 st.rerun()
             else:
                 st.error("Mot de passe incorrect.")
-
 st.divider()
 
 # --- 7. MENTIONS LÉGALES & PRÉVENTION ---
