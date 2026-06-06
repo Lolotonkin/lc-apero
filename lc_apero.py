@@ -235,12 +235,12 @@ if "repas" in choix_type.lower():
 else:
     c1, c2, c3 = st.columns(3)
     with c1: Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
-    with c2: Volume_ml = st.number_input("Volume (ml)", min_value=10, max_value=2000, value=250, step=10)
+    with c2: Volume_cl = st.number_input("Volume (cl)", min_value=1, max_value=200, value=25, step=1)
     with c3: Degre_Alcool = st.number_input("Degré d'alcool (%)", min_value=0.5, max_value=90.0, value=5.0, step=0.5)
 
     if st.button("Enregistrer le verre 💾"):
-        boisson_label = f"{Volume_ml}ml @ {Degre_Alcool}%"
-        alcool_g = float(Volume_ml * (Degre_Alcool / 100) * 0.8)
+        boisson_label = f"{Volume_cl}cl @ {Degre_Alcool}%"
+        alcool_g = float((Volume_cl * 10) * (Degre_Alcool / 100) * 0.8)
         supabase.table("drinks").insert({"pseudo": Qui, "boisson": boisson_label, "alcool_g": alcool_g, "created_at": moment_actuel}).execute()
         envoyer_alerte_whatsapp(Qui, boisson_label, est_repas=False)
         st.success(f"🍹 Verre enregistré pour {Qui}")
@@ -294,7 +294,7 @@ st.divider()
 st.header("📊 3. Courbes (Évolution)")
 if not df_verres.empty and profils:
     fig = go.Figure()
-    couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#34495e']
+    couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#34495e', '#ff9ff3', '#00d2d3']
     
     for i, nom in enumerate(profils.keys()):
         fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
@@ -369,16 +369,23 @@ with st.expander("⚙️ Gérer l'équipe (Poids, Ajouter, Supprimer)", expanded
                 st.rerun()
                 
     with tab_Ajouter:
-        c1, c2, c3 = st.columns(3)
-        with c1: nouveau_nom = st.text_input("Nom de l'invité")
-        with c2: nouveau_sexe = st.selectbox("Sexe", ["Homme", "Femme"])
-        with c3: nouveau_poids_inv = st.number_input("Poids invité (kg)", min_value=40, max_value=150, value=70)
-        if st.button("Ajouter à l'équipe"):
-            if nouveau_nom and nouveau_nom not in profils:
-                supabase.table("profils").insert({"pseudo": nouveau_nom, "sexe": nouveau_sexe, "poids": nouveau_poids_inv}).execute()
-                st.success(f"✔️ {nouveau_nom} ajouté de façon permanente !")
-                del st.session_state.profils 
-                st.rerun()
+        LIMITE_PROFILS = 10
+        
+        if len(profils) >= LIMITE_PROFILS:
+            st.warning(f"🛑 Limite maximale de {LIMITE_PROFILS} personnes atteinte. Veuillez supprimer un profil existant pour en ajouter un nouveau.")
+        else:
+            c1, c2, c3 = st.columns(3)
+            with c1: nouveau_nom = st.text_input("Nom de l'invité")
+            with c2: nouveau_sexe = st.selectbox("Sexe", ["Homme", "Femme"])
+            with c3: nouveau_poids_inv = st.number_input("Poids invité (kg)", min_value=40, max_value=150, value=70)
+            if st.button("Ajouter à l'équipe"):
+                if nouveau_nom and nouveau_nom not in profils:
+                    supabase.table("profils").insert({"pseudo": nouveau_nom, "sexe": nouveau_sexe, "poids": nouveau_poids_inv}).execute()
+                    st.success(f"✔️ {nouveau_nom} ajouté de façon permanente !")
+                    del st.session_state.profils 
+                    st.rerun()
+                elif nouveau_nom in profils:
+                    st.error("Ce nom existe déjà.")
 
     with tab_Supprimer:
         if profils:
