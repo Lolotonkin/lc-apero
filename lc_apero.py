@@ -113,12 +113,13 @@ def charger_donnees():
 
 boissons_nuageuses, repas_nuage = charger_donnees()
 
-# --- MOTEUR DE CALCUL MATHÉMATIQUE (CORRIGÉ & ALIGNÉ) ---
+# --- MOTEUR DE CALCUL MATHÉMATIQUE (ÉTENDU À 24H) ---
 maintenant = pd.Timestamp.now(tz='Europe/Paris')
 maintenant_arrondi = maintenant.floor('5min')
 
-debut_calcul = maintenant_arrondi - pd.Timedelta(hours=12)
-fin_calcul = maintenant_arrondi + pd.Timedelta(hours=8)
+# Calcul étendu pour couvrir les soirées de la veille
+debut_calcul = maintenant_arrondi - pd.Timedelta(hours=24)
+fin_calcul = maintenant_arrondi + pd.Timedelta(hours=12)
 axe_temps = pd.date_range(start=debut_calcul, end=fin_calcul, freq='5min', tz='Europe/Paris')
 
 PENTE_ELIMINATION = 0.15  
@@ -292,6 +293,20 @@ st.divider()
 
 # --- 3. GRAPHIQUE ---
 st.header("📊 3. Courbes (Évolution)")
+
+choix_vue = st.radio(
+    "Sélectionnez la période à afficher :", 
+    ["Standard (H-2 à H+6)", "Demi-journée (H-12 à H+12)", "Week-end (H-24 à H+12)"], 
+    horizontal=True
+)
+
+if "Standard" in choix_vue:
+    h_avant, h_apres = 2, 6
+elif "Demi-journée" in choix_vue:
+    h_avant, h_apres = 12, 12
+else:
+    h_avant, h_apres = 24, 12
+
 if not df_verres.empty and profils:
     fig = go.Figure()
     couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#34495e', '#ff9ff3', '#00d2d3']
@@ -302,8 +317,8 @@ if not df_verres.empty and profils:
     fig.add_vline(x=maintenant_arrondi, line_width=2, line_dash="dash", line_color="orange")
     fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L (Conduite)", annotation_position="top right")
 
-    vue_debut = (maintenant_arrondi - pd.Timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
-    vue_fin = (maintenant_arrondi + pd.Timedelta(hours=6)).strftime('%Y-%m-%d %H:%M:%S')
+    vue_debut = (maintenant_arrondi - pd.Timedelta(hours=h_avant)).strftime('%Y-%m-%d %H:%M:%S')
+    vue_fin = (maintenant_arrondi + pd.Timedelta(hours=h_apres)).strftime('%Y-%m-%d %H:%M:%S')
 
     fig.update_xaxes(fixedrange=True, title="Heure", range=[vue_debut, vue_fin], autorange=False)
     fig.update_yaxes(fixedrange=True, title="Taux (g/L)", rangemode="tozero")
@@ -315,10 +330,10 @@ else:
 st.divider()
 
 # --- 4. HISTORIQUE & SUPPRESSION ---
-st.header("📋 4. Historique (12 dernières heures)")
+st.header("📋 4. Historique (24 dernières heures)")
 
-df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=12))].sort_values(by='created_at', ascending=False)
-df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=12))].sort_values(by='created_at', ascending=False)
+df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].sort_values(by='created_at', ascending=False)
+df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].sort_values(by='created_at', ascending=False)
 
 if not df_verres_recent.empty or not df_repas_recent.empty:
     col_hist1, col_hist2 = st.columns(2)
