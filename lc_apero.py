@@ -9,7 +9,8 @@ import plotly.graph_objects as go
 import urllib.parse
 
 # --- CONFIGURATION INITIALE & THÈME ---
-st.set_page_config(page_title="Suivi de soirée 🍹", layout="wide", initial_sidebar_state="collapsed")
+# Modification ici : expanded par défaut pour bien voir le menu sur PC
+st.set_page_config(page_title="Suivi de soirée 🍹", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -18,15 +19,22 @@ st.markdown("""
     h1, h2, h3, p, span, label, div[data-testid="stMarkdownContainer"] { color: #FFFFFF !important; }
     h1, h2 { color: #FF9800 !important; font-weight: bold !important; }
     
-    /* Bouton d'ouverture du menu latéral (Mobile) bien visible en orange */
-    button[kind="header"] {
-        color: #FF9800 !important;
-    }
+    /* FORCER L'AFFICHAGE DU BOUTON MENU (SIDEBAR) SUR FOND NOIR */
     [data-testid="collapsedControl"] {
-        color: #FF9800 !important;
-        background-color: #1A1A1A !important;
-        border: 1px solid #FF9800 !important;
-        border-radius: 5px;
+        background-color: #FF9800 !important;
+        border: 2px solid #FFFFFF !important;
+        border-radius: 5px !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        z-index: 999999 !important;
+        transition: 0.3s;
+    }
+    [data-testid="collapsedControl"] svg {
+        fill: #000000 !important;
+        color: #000000 !important;
+    }
+    [data-testid="collapsedControl"]:hover {
+        background-color: #e68a00 !important;
     }
     
     /* Boutons et formulaires */
