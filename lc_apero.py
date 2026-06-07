@@ -18,6 +18,17 @@ st.markdown("""
     h1, h2, h3, p, span, label, div[data-testid="stMarkdownContainer"] { color: #FFFFFF !important; }
     h1, h2 { color: #FF9800 !important; font-weight: bold !important; }
     
+    /* Bouton d'ouverture du menu latéral (Mobile) bien visible en orange */
+    button[kind="header"] {
+        color: #FF9800 !important;
+    }
+    [data-testid="collapsedControl"] {
+        color: #FF9800 !important;
+        background-color: #1A1A1A !important;
+        border: 1px solid #FF9800 !important;
+        border-radius: 5px;
+    }
+    
     /* Boutons et formulaires */
     div[data-testid="stButton"] > button, 
     div[data-testid="stFormSubmitButton"] > button { 
