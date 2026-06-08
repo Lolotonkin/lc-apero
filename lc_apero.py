@@ -9,7 +9,6 @@ import plotly.graph_objects as go
 import urllib.parse
 
 # --- CONFIGURATION INITIALE & THÈME ---
-# Sidebar désactivée par défaut pour ne pas gêner sur mobile
 st.set_page_config(page_title="Suivi de soirée 🍹", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
@@ -96,7 +95,6 @@ if "Haggis et les cafards" not in tables_existantes:
 if "groupe_selectionne" not in st.session_state:
     st.session_state.groupe_selectionne = "Haggis et les cafards"
 
-# Si la table vient d'être créée mais n'a pas encore de profil en BDD, on l'ajoute virtuellement à la liste
 if st.session_state.groupe_selectionne not in tables_existantes:
     tables_existantes.append(st.session_state.groupe_selectionne)
 
@@ -155,7 +153,6 @@ def charger_donnees(groupe):
 
 profils = charger_profils(groupe_actif)
 
-# REGLE STRICTE DES PROFILS PAR DÉFAUT (Uniquement sur la table d'origine)
 if not profils and groupe_actif == "Haggis et les cafards":
     defauts = [
         {"pseudo": "Lolo", "sexe": "Homme", "poids": 75, "groupe": groupe_actif},
@@ -463,16 +460,36 @@ st.divider()
 st.markdown("<div id='faq'></div>", unsafe_allow_html=True)
 with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
     st.markdown("""
-    ### Questions fréquentes
+    ### Foire Aux Questions
+    
     * **Comment fonctionne le système de tables ?**
-      Utilisez le menu déroulant tout en haut pour naviguer entre les soirées ou en créer une nouvelle en choisissant `➕ Créer une nouvelle table...`.
-    * **Pourquoi déclarer un repas ?**
-      La nourriture retarde l'absorption. L'algorithme lissera la courbe et repoussera le pic de concentration pour être plus fidèle à la biologie humaine.
+      Utilisez le menu déroulant tout en haut pour naviguer entre les soirées ou en créer une nouvelle en choisissant `➕ Créer une nouvelle table...`. Chaque table a son propre historique et ses propres invités.
+      
+    * **Pourquoi l'application me demande-t-elle de déclarer un repas ?**
+      Manger ne fait pas baisser l'alcoolémie, mais cela ralentit considérablement l'absorption de l'alcool dans le sang. L'algorithme lissera la courbe et repoussera le pic de concentration pour être plus fidèle à la biologie humaine (absorption en 1h à jeun, contre 3h au cours d'un repas).
+      
+    * **Oups, je me suis trompé de verre ou de personne. Que faire ?**
+      Pas de panique ! Descendez à la section "4. Historique". Vous y verrez toutes les consommations des dernières 24h. Cliquez simplement sur la croix rouge (❌) à côté du verre concerné pour l'effacer définitivement.
+      
+    * **Qu'est-ce que le "Max projeté" dans le tableau de bord ?**
+      C'est le pic d'alcoolémie estimé. Quand vous buvez, le taux ne monte pas instantanément. L'application calcule à quel niveau votre taux va culminer dans les minutes ou les heures qui suivent, en fonction de tout ce qui a été ingéré.
+      
+    * **Pourquoi mon taux met-il autant de temps à baisser sur le graphique ?**
+      Le foie d'un adulte en bonne santé élimine en moyenne entre 0.10 g/L et 0.15 g/L d'alcool par heure, de façon linéaire, et rien ne peut accélérer ce processus (ni le café, ni les douches froides). L'application utilise une constante d'élimination prudente de 0.15 g/L par heure.
+      
+    * **Est-ce que tout le monde peut voir ma consommation ?**
+      Oui, toutes les personnes qui possèdent le lien de l'application et qui sélectionnent votre "Table" peuvent voir le graphique et l'historique associés à ce groupe.
     """)
 
 # --- 8. MENTIONS LÉGALES ---
 st.markdown("""
-    <div style='text-align: center; color: #888888; font-size: 11px; margin-top: 30px; padding-bottom: 30px;'>
-        ⚠️ <b>AVERTISSEMENT</b> : Simulation théorique purement indicative sans valeur légale. Ne remplace pas un éthylotest officiel. En cas de doute, ne prenez pas le volant.
+    <div style='text-align: center; color: #888888; font-size: 11px; margin-top: 30px; padding-bottom: 30px; line-height: 1.5;'>
+        ⚠️ <b>AVERTISSEMENT LÉGAL ET DE SANTÉ</b><br><br>
+        Les résultats fournis par cette application sont basés sur des modélisations mathématiques théoriques (formule de Widmark modifiée) 
+        et ne sont donnés qu'à titre purement indicatif. En aucun cas ces données ne peuvent se substituer à un véritable éthylotest homologué, 
+        à une prise de sang ou à un avis médical. Chaque métabolisme est unique et réagit différemment à l'alcool.<br><br>
+        L'abus d'alcool est dangereux pour la santé, à consommer avec modération. En cas de doute, la règle d'or absolue s'applique : 
+        <b>Si tu as bu, tu ne conduis pas !</b><br><br>
+        <i>Et surtout, ne mange pas trop gras, trop salé, trop sucré...</i>
     </div>
     """, unsafe_allow_html=True)
