@@ -9,7 +9,8 @@ import plotly.graph_objects as go
 import urllib.parse
 
 # --- CONFIGURATION INITIALE & THÈME ---
-st.set_page_config(page_title="Suivi de soirée 🍹", layout="wide", initial_sidebar_state="expanded")
+# Sidebar désactivée par défaut pour ne pas gêner sur mobile
+st.set_page_config(page_title="Suivi de soirée 🍹", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -17,32 +18,6 @@ st.markdown("""
     .stApp, .stApp > header { background-color: #000000 !important; color: #FFFFFF !important; }
     h1, h2, h3, p, span, label, div[data-testid="stMarkdownContainer"] { color: #FFFFFF !important; }
     h1, h2 { color: #FF9800 !important; font-weight: bold !important; }
-    
-    /* CORRECTION RADICALE DU CONTRASTE DE LA SIDEBAR */
-    [data-testid="stSidebar"] {
-        background-color: #050505 !important;
-        border-right: 2px solid #FF9800 !important;
-    }
-    [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span {
-        color: #FFFFFF !important;
-    }
-    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, [data-testid="stSidebar"] h4 {
-        color: #FF9800 !important;
-        font-weight: bold !important;
-    }
-    
-    /* Boutons et contrôles des chevrons de la sidebar */
-    button[data-testid="stSidebarCollapseButton"] svg, [data-testid="collapsedControl"] svg {
-        fill: #FF9800 !important;
-        color: #FF9800 !important;
-    }
-    
-    /* Forcer l'affichage du bouton de réouverture s'il est masqué */
-    [data-testid="collapsedControl"] {
-        background-color: #1A1A1A !important;
-        border: 2px solid #FF9800 !important;
-        border-radius: 5px !important;
-    }
     
     /* Boutons généraux */
     div[data-testid="stButton"] > button, 
@@ -58,7 +33,7 @@ st.markdown("""
         border-color: #FF9800 !important;
     }
     
-    /* Champs de saisie & Selectbox (Sidebar incluse) */
+    /* Champs de saisie & Selectbox */
     .stTextInput input, .stNumberInput input, div[data-baseweb="select"] { 
         background-color: #1A1A1A !important; 
         color: #FFFFFF !important; 
@@ -106,9 +81,14 @@ def obtenir_toutes_les_tables():
     except:
         return ["Haggis et les cafards"]
 
-# --- GESTION DU CHOIX DE LA TABLE (SIDEBAR) ---
-st.sidebar.header("⚙️ Configuration")
+# ==========================================
+# INTERFACE UTILISATEUR PRINCIPALE
+# ==========================================
+st.title("🍹 Suivi de soirée")
+st.markdown("<p style='text-align: right;'><a href='#faq' style='color: #FF9800; text-decoration: none;'>❓ Une question ? Consulter la FAQ en bas</a></p>", unsafe_allow_html=True)
 
+# --- GESTION DU CHOIX DE LA TABLE (MAIN BODY) ---
+st.markdown("### 🌐 Table active")
 tables_existantes = obtenir_toutes_les_tables()
 if "Haggis et les cafards" not in tables_existantes:
     tables_existantes.insert(0, "Haggis et les cafards")
@@ -116,33 +96,38 @@ if "Haggis et les cafards" not in tables_existantes:
 if "groupe_selectionne" not in st.session_state:
     st.session_state.groupe_selectionne = "Haggis et les cafards"
 
+# Si la table vient d'être créée mais n'a pas encore de profil en BDD, on l'ajoute virtuellement à la liste
+if st.session_state.groupe_selectionne not in tables_existantes:
+    tables_existantes.append(st.session_state.groupe_selectionne)
+
 options_menu = tables_existantes + ["➕ Créer une nouvelle table..."]
-try:
-    index_defaut = options_menu.index(st.session_state.groupe_selectionne)
-except ValueError:
-    options_menu.insert(0, st.session_state.groupe_selectionne)
-    index_defaut = 0
+index_defaut = options_menu.index(st.session_state.groupe_selectionne)
 
-choix_sidebar = st.sidebar.selectbox("📋 Sélectionner une table :", options_menu, index=index_defaut)
+choix_table = st.selectbox("Sélectionnez votre table :", options_menu, index=index_defaut, label_visibility="collapsed")
 
-if choix_sidebar == "➕ Créer une nouvelle table...":
-    nom_nouvelle_table = st.sidebar.text_input("✏️ Nom de la nouvelle table :")
-    if st.sidebar.button("Valider et Rejoindre 🚀"):
-        if nom_nouvelle_table.strip():
-            st.session_state.groupe_selectionne = nom_nouvelle_table.strip()
-            st.cache_data.clear()
-            st.rerun()
-        else:
-            st.sidebar.error("Le nom ne peut pas être vide.")
+if choix_table == "➕ Créer une nouvelle table...":
+    st.info("💡 Saisissez le nom de la nouvelle table ci-dessous.")
+    col_nom, col_btn = st.columns([3, 1])
+    with col_nom:
+        nom_nouvelle_table = st.text_input("Nom de la table :", label_visibility="collapsed", placeholder="Ex: Mariage de Max")
+    with col_btn:
+        if st.button("Rejoindre 🚀", use_container_width=True):
+            if nom_nouvelle_table.strip():
+                st.session_state.groupe_selectionne = nom_nouvelle_table.strip()
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.error("Nom invalide.")
     groupe_actif = st.session_state.groupe_selectionne
 else:
-    if choix_sidebar != st.session_state.groupe_selectionne:
-        st.session_state.groupe_selectionne = choix_sidebar
+    if choix_table != st.session_state.groupe_selectionne:
+        st.session_state.groupe_selectionne = choix_table
         st.cache_data.clear()
         st.rerun()
-    groupe_actif = choix_sidebar
+    groupe_actif = choix_table
 
-envoyer_wa = st.sidebar.checkbox("Activer les alertes WhatsApp", value=True)
+with st.expander("⚙️ Paramètres de l'application", expanded=False):
+    envoyer_wa = st.checkbox("Activer les alertes WhatsApp", value=True)
 
 def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
     if not URL_WEBHOOK_WHATSAPP or not envoyer_wa: return
@@ -150,7 +135,9 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
     try: requests.post(URL_WEBHOOK_WHATSAPP, json={"message": texte, "pseudo": pseudo})
     except: pass
 
-# --- CHARGEMENT OPTIMISÉ AVEC CACHE TTL ---
+st.divider()
+
+# --- CHARGEMENT DES DONNÉES DE LA TABLE ACTIVE ---
 @st.cache_data(ttl=2)
 def charger_profils(groupe):
     try:
@@ -260,14 +247,6 @@ for nom, info in profils.items():
         
     df_graphique[nom] = taux_liste
 
-# ==========================================
-# INTERFACE UTILISATEUR
-# ==========================================
-st.title("🍹 Suivi de soirée")
-st.subheader(f"🌐 Table active : {groupe_actif}")
-
-st.markdown("<p style='text-align: right;'><a href='#faq' style='color: #FF9800; text-decoration: none;'>❓ Une question ? Consulter la FAQ en bas</a></p>", unsafe_allow_html=True)
-
 # --- 0. ACCÈS ---
 APP_URL = "https://lc-apero-eqdne2pvte4wak5sawi8kf.streamlit.app"
 col_qr, col_texte = st.columns([1, 4])
@@ -277,14 +256,14 @@ with col_qr:
     img.save(buf, format='PNG')
     st.image(buf.getvalue(), width=100)
 with col_texte:
-    st.markdown("<h3 style='color: orange; margin-top: 0px;'>🔗 Accès à l'application</h3>", unsafe_allow_html=True)
-    st.text_input("Lien à copier (cliquez dedans et Ctrl+C) :", value=APP_URL, label_visibility="collapsed")
+    st.markdown("<h3 style='color: orange; margin-top: 0px;'>🔗 Partager l'application</h3>", unsafe_allow_html=True)
+    st.text_input("Lien à copier :", value=APP_URL, label_visibility="collapsed")
 st.divider()
 
 # --- 1. DÉCLARATION ---
 st.header("🍹 1. Déclarer")
 if not profils:
-    st.error("⚠️ Aucun invité dans cette table. Allez dans la section '5. Gérer l'équipe' en bas pour vous ajouter !")
+    st.error("⚠️ Cette table est vide. Descendez à la section '5. Gérer l'équipe' pour ajouter des invités !")
 else:
     choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️"], horizontal=True)
     moment_actuel = datetime.datetime.now().isoformat()
@@ -316,7 +295,7 @@ st.divider()
 # --- 2. TABLEAU DE BORD INSTANTANÉ ---
 st.header("📍 2. Tableau de bord")
 if not profils:
-    st.warning("En attente de création de profils pour cette table.")
+    st.warning("En attente de profils pour calculer les taux.")
 else:
     cols_dashboard = st.columns(len(profils))
     texte_whatsapp = f"🪳 *Point AlcooSuivi — Table {groupe_actif}* 🍻\n\n"
@@ -381,7 +360,7 @@ else:
     st.info("Aucun verre enregistré sur cette table.")
 st.divider()
 
-# --- 4. HISTORIQUE COMPACT ET ADAPTÉ MOBILE ---
+# --- 4. HISTORIQUE COMPACT ---
 st.header("📋 4. Historique")
 with st.expander("👀 Afficher / Masquer l'historique récent (24h)", expanded=True):
     df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_verres.empty else pd.DataFrame()
@@ -411,7 +390,8 @@ with st.expander("👀 Afficher / Masquer l'historique récent (24h)", expanded=
 st.divider()
 
 # --- 5. CONFIGURATION ÉQUIPE ---
-with st.expander("⚙️ 5. Gérer l'équipe (Poids, Ajouter, Supprimer)", expanded=not profils):
+st.header("⚙️ 5. Gérer l'équipe")
+with st.expander(f"Modifier les participants de '{groupe_actif}'", expanded=not profils):
     onglet_Ajusteur, tab_Ajouter, tab_Supprimer = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité", "🗑️ Supprimer un profil"])
     
     with onglet_Ajusteur:
@@ -453,19 +433,30 @@ with st.expander("⚙️ 5. Gérer l'équipe (Poids, Ajouter, Supprimer)", expan
 st.divider()
 
 # --- 6. ADMINISTRATION ---
-with st.expander("🚨 Zone de danger (Remise à zéro)", expanded=False):
+st.header("🚨 6. Zone de danger")
+with st.expander("Gérer la base de données", expanded=False):
     with st.form("form_effacer"):
-        mdp = st.text_input("Mot de passe :", type="password")
-        choix_effacer = st.radio("Effacer :", ["Verres/Repas du groupe uniquement", "TOUT (Effacer aussi les profils du groupe)"])
-        if st.form_submit_button("EXÉCUTER"):
+        mdp = st.text_input("Mot de passe administrateur :", type="password")
+        choix_effacer = st.radio("Action souhaitée :", [
+            f"🧹 Vider uniquement l'historique de '{groupe_actif}' (Garder les profils)", 
+            f"🗑️ SUPPRIMER ENTIÈREMENT LA TABLE '{groupe_actif}'"
+        ])
+        if st.form_submit_button("EXÉCUTER L'ACTION"):
             if mdp == "lolo":
-                supabase.table("drinks").delete().eq("groupe", groupe_actif).execute()
-                supabase.table("meals").delete().eq("groupe", groupe_actif).execute()
-                if "TOUT" in choix_effacer:
+                if "Vider" in choix_effacer:
+                    supabase.table("drinks").delete().eq("groupe", groupe_actif).execute()
+                    supabase.table("meals").delete().eq("groupe", groupe_actif).execute()
+                    st.success(f"Historique de {groupe_actif} effacé avec succès.")
+                elif "SUPPRIMER" in choix_effacer:
+                    supabase.table("drinks").delete().eq("groupe", groupe_actif).execute()
+                    supabase.table("meals").delete().eq("groupe", groupe_actif).execute()
                     supabase.table("profils").delete().eq("groupe", groupe_actif).execute()
+                    st.session_state.groupe_selectionne = "Haggis et les cafards"
+                    st.success(f"La table '{groupe_actif}' a été complètement supprimée.")
                 st.cache_data.clear()
-                st.success("Réinitialisation réussie.")
                 st.rerun()
+            else:
+                st.error("Mot de passe incorrect.")
 st.divider()
 
 # --- 7. FAQ ---
@@ -473,8 +464,8 @@ st.markdown("<div id='faq'></div>", unsafe_allow_html=True)
 with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
     st.markdown("""
     ### Questions fréquentes
-    * **Comment fonctionne le système de groupes ?**
-      Sélectionnez une table dans le menu déroulant ou cliquez sur `➕ Créer une nouvelle table...` pour générer un salon vierge instantanément.
+    * **Comment fonctionne le système de tables ?**
+      Utilisez le menu déroulant tout en haut pour naviguer entre les soirées ou en créer une nouvelle en choisissant `➕ Créer une nouvelle table...`.
     * **Pourquoi déclarer un repas ?**
       La nourriture retarde l'absorption. L'algorithme lissera la courbe et repoussera le pic de concentration pour être plus fidèle à la biologie humaine.
     """)
