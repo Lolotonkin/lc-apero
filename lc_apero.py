@@ -9,7 +9,6 @@ import plotly.graph_objects as go
 import urllib.parse
 
 # --- CONFIGURATION INITIALE & THÈME ---
-# Modification ici : expanded par défaut pour bien voir le menu sur PC
 st.set_page_config(page_title="Suivi de soirée 🍹", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
@@ -19,25 +18,33 @@ st.markdown("""
     h1, h2, h3, p, span, label, div[data-testid="stMarkdownContainer"] { color: #FFFFFF !important; }
     h1, h2 { color: #FF9800 !important; font-weight: bold !important; }
     
-    /* FORCER L'AFFICHAGE DU BOUTON MENU (SIDEBAR) SUR FOND NOIR */
-    [data-testid="collapsedControl"] {
-        background-color: #FF9800 !important;
-        border: 2px solid #FFFFFF !important;
-        border-radius: 5px !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-        z-index: 999999 !important;
-        transition: 0.3s;
+    /* CORRECTION RADICALE DU CONTRASTE DE LA SIDEBAR */
+    [data-testid="stSidebar"] {
+        background-color: #050505 !important;
+        border-right: 2px solid #FF9800 !important;
     }
-    [data-testid="collapsedControl"] svg {
-        fill: #000000 !important;
-        color: #000000 !important;
+    [data-testid="stSidebar"] *, [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span {
+        color: #FFFFFF !important;
     }
-    [data-testid="collapsedControl"]:hover {
-        background-color: #e68a00 !important;
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, [data-testid="stSidebar"] h4 {
+        color: #FF9800 !important;
+        font-weight: bold !important;
     }
     
-    /* Boutons et formulaires */
+    /* Boutons et contrôles des chevrons de la sidebar */
+    button[data-testid="stSidebarCollapseButton"] svg, [data-testid="collapsedControl"] svg {
+        fill: #FF9800 !important;
+        color: #FF9800 !important;
+    }
+    
+    /* Forcer l'affichage du bouton de réouverture s'il est masqué */
+    [data-testid="collapsedControl"] {
+        background-color: #1A1A1A !important;
+        border: 2px solid #FF9800 !important;
+        border-radius: 5px !important;
+    }
+    
+    /* Boutons généraux */
     div[data-testid="stButton"] > button, 
     div[data-testid="stFormSubmitButton"] > button { 
         background-color: #FF9800 !important; 
@@ -51,8 +58,8 @@ st.markdown("""
         border-color: #FF9800 !important;
     }
     
-    /* Champs de saisie */
-    .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] { 
+    /* Champs de saisie & Selectbox (Sidebar incluse) */
+    .stTextInput input, .stNumberInput input, div[data-baseweb="select"] { 
         background-color: #1A1A1A !important; 
         color: #FFFFFF !important; 
         border: 1px solid #FF9800 !important; 
@@ -67,11 +74,9 @@ st.markdown("""
         border: 2px solid #FFFFFF !important;
     }
     
-    /* Expanders */
+    /* Expanders & Métriques */
     div[data-testid="stExpander"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; }
     div[data-testid="stExpander"] summary { color: #FF9800 !important; font-weight: bold !important; }
-    
-    /* Métriques */
     div[data-testid="stMetricValue"] { color: #FF9800 !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -90,9 +95,53 @@ def init_supabase():
 supabase = init_supabase()
 URL_WEBHOOK_WHATSAPP = st.secrets.get("URL_WEBHOOK_WHATSAPP", "")
 
-# --- GESTION MULTI-GROUPES (SIDEBAR) ---
+# --- FONCTION DE RÉCUPÉRATION DES TABLES (GROUPES) ---
+@st.cache_data(ttl=2)
+def obtenir_toutes_les_tables():
+    try:
+        rep = supabase.table("profils").select("groupe").execute()
+        if rep.data:
+            return sorted(list(set([p['groupe'] for p in rep.data if p.get('groupe')])))
+        return ["Haggis et les cafards"]
+    except:
+        return ["Haggis et les cafards"]
+
+# --- GESTION DU CHOIX DE LA TABLE (SIDEBAR) ---
 st.sidebar.header("⚙️ Configuration")
-groupe_actif = st.sidebar.text_input("👥 Groupe Actif", value="Haggis et les cafards", help="Tapez un nom existant pour rejoindre un groupe, ou un nouveau pour le créer.")
+
+tables_existantes = obtenir_toutes_les_tables()
+if "Haggis et les cafards" not in tables_existantes:
+    tables_existantes.insert(0, "Haggis et les cafards")
+
+if "groupe_selectionne" not in st.session_state:
+    st.session_state.groupe_selectionne = "Haggis et les cafards"
+
+options_menu = tables_existantes + ["➕ Créer une nouvelle table..."]
+try:
+    index_defaut = options_menu.index(st.session_state.groupe_selectionne)
+except ValueError:
+    options_menu.insert(0, st.session_state.groupe_selectionne)
+    index_defaut = 0
+
+choix_sidebar = st.sidebar.selectbox("📋 Sélectionner une table :", options_menu, index=index_defaut)
+
+if choix_sidebar == "➕ Créer une nouvelle table...":
+    nom_nouvelle_table = st.sidebar.text_input("✏️ Nom de la nouvelle table :")
+    if st.sidebar.button("Valider et Rejoindre 🚀"):
+        if nom_nouvelle_table.strip():
+            st.session_state.groupe_selectionne = nom_nouvelle_table.strip()
+            st.cache_data.clear()
+            st.rerun()
+        else:
+            st.sidebar.error("Le nom ne peut pas être vide.")
+    groupe_actif = st.session_state.groupe_selectionne
+else:
+    if choix_sidebar != st.session_state.groupe_selectionne:
+        st.session_state.groupe_selectionne = choix_sidebar
+        st.cache_data.clear()
+        st.rerun()
+    groupe_actif = choix_sidebar
+
 envoyer_wa = st.sidebar.checkbox("Activer les alertes WhatsApp", value=True)
 
 def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
@@ -117,14 +166,10 @@ def charger_donnees(groupe):
         return (boissons.data or []), (repas.data or [])
     except: return [], []
 
-# Vérification du changement de groupe
-if "dernier_groupe" not in st.session_state or st.session_state.dernier_groupe != groupe_actif:
-    st.session_state.dernier_groupe = groupe_actif
-    st.cache_data.clear()
-
 profils = charger_profils(groupe_actif)
 
-if not profils:
+# REGLE STRICTE DES PROFILS PAR DÉFAUT (Uniquement sur la table d'origine)
+if not profils and groupe_actif == "Haggis et les cafards":
     defauts = [
         {"pseudo": "Lolo", "sexe": "Homme", "poids": 75, "groupe": groupe_actif},
         {"pseudo": "Poums", "sexe": "Homme", "poids": 75, "groupe": groupe_actif},
@@ -137,7 +182,7 @@ if not profils:
 
 boissons_nuageuses, repas_nuage = charger_donnees(groupe_actif)
 
-# --- MOTEUR DE CALCUL MATHÉMATIQUE ULTRA-OPTIMISÉ ---
+# --- MOTEUR DE CALCUL MATHÉMATIQUE ---
 maintenant = pd.Timestamp.now(tz='Europe/Paris')
 maintenant_arrondi = maintenant.floor('5min')
 debut_calcul = maintenant_arrondi - pd.Timedelta(hours=24)
@@ -174,8 +219,8 @@ for nom, info in profils.items():
         if premier_verre < t_start_sim: t_start_sim = premier_verre
             
     axe_complet = pd.date_range(start=t_start_sim, end=fin_calcul, freq='5min', tz='Europe/Paris')
-    
     apports_globaux = pd.Series(0.0, index=axe_complet)
+    
     if not verres_perso.empty:
         for _, verre in verres_perso.iterrows():
             t_drink = verre['created_at']
@@ -219,7 +264,7 @@ for nom, info in profils.items():
 # INTERFACE UTILISATEUR
 # ==========================================
 st.title("🍹 Suivi de soirée")
-st.subheader(f"🌐 Groupe : {groupe_actif}")
+st.subheader(f"🌐 Table active : {groupe_actif}")
 
 st.markdown("<p style='text-align: right;'><a href='#faq' style='color: #FF9800; text-decoration: none;'>❓ Une question ? Consulter la FAQ en bas</a></p>", unsafe_allow_html=True)
 
@@ -238,53 +283,56 @@ st.divider()
 
 # --- 1. DÉCLARATION ---
 st.header("🍹 1. Déclarer")
-choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️"], horizontal=True)
-moment_actuel = datetime.datetime.now().isoformat()
-
-if "repas" in choix_type.lower():
-    Qui = st.selectbox("Qui a mangé ?", list(profils.keys()))
-    if st.button("Enregistrer le repas 💾"):
-        supabase.table("meals").insert({"pseudo": Qui, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
-        st.cache_data.clear() 
-        envoyer_alerte_whatsapp(Qui, "", est_repas=True)
-        st.success(f"🍽️ Repas enregistré pour {Qui}")
-        st.rerun()
+if not profils:
+    st.error("⚠️ Aucun invité dans cette table. Allez dans la section '5. Gérer l'équipe' en bas pour vous ajouter !")
 else:
-    c1, c2, c3 = st.columns(3)
-    with c1: Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
-    with c2: Volume_cl = st.number_input("Volume (cl)", min_value=1, max_value=200, value=25, step=1)
-    with c3: Degre_Alcool = st.number_input("Degré d'alcool (%)", min_value=0.5, max_value=90.0, value=5.0, step=0.5)
+    choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️"], horizontal=True)
+    moment_actuel = datetime.datetime.now().isoformat()
 
-    if st.button("Enregistrer le verre 💾"):
-        boisson_label = f"{Volume_cl}cl @ {Degre_Alcool}%"
-        alcool_g = float((Volume_cl * 10) * (Degre_Alcool / 100) * 0.8)
-        supabase.table("drinks").insert({"pseudo": Qui, "boisson": boisson_label, "alcool_g": alcool_g, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
-        st.cache_data.clear() 
-        envoyer_alerte_whatsapp(Qui, boisson_label, est_repas=False)
-        st.success(f"🍹 Verre enregistré pour {Qui}")
-        st.rerun()
+    if "repas" in choix_type.lower():
+        Qui = st.selectbox("Qui a mangé ?", list(profils.keys()))
+        if st.button("Enregistrer le repas 💾"):
+            supabase.table("meals").insert({"pseudo": Qui, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
+            st.cache_data.clear() 
+            envoyer_alerte_whatsapp(Qui, "", est_repas=True)
+            st.success(f"🍽️ Repas enregistré pour {Qui}")
+            st.rerun()
+    else:
+        c1, c2, c3 = st.columns(3)
+        with c1: Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
+        with c2: Volume_cl = st.number_input("Volume (cl)", min_value=1, max_value=200, value=25, step=1)
+        with c3: Degre_Alcool = st.number_input("Degré d'alcool (%)", min_value=0.5, max_value=90.0, value=5.0, step=0.5)
+
+        if st.button("Enregistrer le verre 💾"):
+            boisson_label = f"{Volume_cl}cl @ {Degre_Alcool}%"
+            alcool_g = float((Volume_cl * 10) * (Degre_Alcool / 100) * 0.8)
+            supabase.table("drinks").insert({"pseudo": Qui, "boisson": boisson_label, "alcool_g": alcool_g, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
+            st.cache_data.clear() 
+            envoyer_alerte_whatsapp(Qui, boisson_label, est_repas=False)
+            st.success(f"🍹 Verre enregistré pour {Qui}")
+            st.rerun()
 st.divider()
 
 # --- 2. TABLEAU DE BORD INSTANTANÉ ---
 st.header("📍 2. Tableau de bord")
 if not profils:
-    st.warning("Aucun profil disponible pour ce groupe.")
+    st.warning("En attente de création de profils pour cette table.")
 else:
     cols_dashboard = st.columns(len(profils))
-    texte_whatsapp = f"🪳 *Point AlcooSuivi — Groupe {groupe_actif}* 🍻\n\n"
+    texte_whatsapp = f"🪳 *Point AlcooSuivi — Table {groupe_actif}* 🍻\n\n"
 
     for i, nom in enumerate(profils.keys()):
-        taux_actuel = df_graphique[nom].iloc[idx_maintenant]
-        taux_max = df_graphique[nom].max()
-        donnees_futures = df_graphique[nom].loc[maintenant_arrondi:]
+        taux_actuel = df_graphique[nom].iloc[idx_maintenant] if nom in df_graphique.columns else 0.0
+        taux_max = df_graphique[nom].max() if nom in df_graphique.columns else 0.0
+        donnees_futures = df_graphique[nom].loc[maintenant_arrondi:] if nom in df_graphique.columns else pd.Series()
         
-        if taux_actuel > 0.01 or donnees_futures.max() > 0.01:
+        if taux_actuel > 0.01 or (not donnees_futures.empty and donnees_futures.max() > 0.01):
             temps_sobre = donnees_futures[donnees_futures <= 0.01]
             retour_zero = temps_sobre.index[0].strftime("%H:%M") if not temps_sobre.empty else "Demain"
         else:
             retour_zero = "À jeun"
             
-        if donnees_futures.max() < 0.5:
+        if donnees_futures.empty or donnees_futures.max() < 0.5:
             heure_conduite = "Maintenant ✅"
         else:
             heure_pic = donnees_futures.idxmax()
@@ -299,7 +347,7 @@ else:
             st.markdown(f"**🚗 Conduite (<0.5) :** {heure_conduite}")
             st.markdown(f"**💧 À jeun (0.0) :** {retour_zero}")
             
-        texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f}g/L (Max: {taux_max:.2f}) — 🚗 Conduite: {heure_conduite}\n"
+        texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f}g/L (Max: {taux_max:.2f})\n"
 
     texte_wa_encode = urllib.parse.quote(texte_whatsapp)
     lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
@@ -309,18 +357,18 @@ st.divider()
 
 # --- 3. GRAPHIQUE ---
 st.header("📊 3. Courbes (Évolution)")
-choix_vue = st.radio("Sélectionnez la période à afficher :", ["Standard (H-2 à H+6)", "Demi-journée (H-12 à H+12)", "Week-end (H-24 à H+12)"], horizontal=True)
-
-h_avant, h_apres = (2, 6) if "Standard" in choix_vue else ((12, 12) if "Demi-journée" in choix_vue else (24, 12))
-
 if not df_verres.empty and profils:
+    choix_vue = st.radio("Sélectionnez la période à afficher :", ["Standard (H-2 à H+6)", "Demi-journée (H-12 à H+12)", "Week-end (H-24 à H+12)"], horizontal=True)
+    h_avant, h_apres = (2, 6) if "Standard" in choix_vue else ((12, 12) if "Demi-journée" in choix_vue else (24, 12))
+
     fig = go.Figure()
-    couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#34495e', '#ff9ff3', '#00d2d3']
+    couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c']
     for i, nom in enumerate(profils.keys()):
-        fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
+        if nom in df_graphique.columns:
+            fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
 
     fig.add_vline(x=maintenant_arrondi, line_width=2, line_dash="dash", line_color="orange")
-    fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L (Conduite)", annotation_position="top right")
+    fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L", annotation_position="top right")
 
     vue_debut = (maintenant_arrondi - pd.Timedelta(hours=h_avant)).strftime('%Y-%m-%d %H:%M:%S')
     vue_fin = (maintenant_arrondi + pd.Timedelta(hours=h_apres)).strftime('%Y-%m-%d %H:%M:%S')
@@ -330,67 +378,66 @@ if not df_verres.empty and profils:
     fig.update_layout(template="plotly_dark", hovermode="x unified", margin=dict(l=20, r=20, t=30, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 else:
-    st.info("Aucun verre enregistré.")
+    st.info("Aucun verre enregistré sur cette table.")
 st.divider()
 
-# --- 4. HISTORIQUE COMPACT ---
+# --- 4. HISTORIQUE COMPACT ET ADAPTÉ MOBILE ---
 st.header("📋 4. Historique")
-with st.expander("👀 Afficher / Masquer l'historique récent (24h)", expanded=False):
-    df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy()
-    if not df_verres_recent.empty:
-        df_verres_recent['type'], df_verres_recent['details'] = '🍹', df_verres_recent['boisson']
-    else:
-        df_verres_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
+with st.expander("👀 Afficher / Masquer l'historique récent (24h)", expanded=True):
+    df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_verres.empty else pd.DataFrame()
+    if not df_verres_recent.empty: df_verres_recent['type'], df_verres_recent['details'] = '🍹', df_verres_recent['boisson']
+    else: df_verres_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
 
-    df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy()
-    if not df_repas_recent.empty:
-        df_repas_recent['type'], df_repas_recent['details'] = '🍽️', 'Repas'
-    else:
-        df_repas_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
+    df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_repas.empty else pd.DataFrame()
+    if not df_repas_recent.empty: df_repas_recent['type'], df_repas_recent['details'] = '🍽️', 'Repas'
+    else: df_repas_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
 
     df_timeline = pd.concat([df_verres_recent[['id', 'pseudo', 'created_at', 'type', 'details']], df_repas_recent[['id', 'pseudo', 'created_at', 'type', 'details']]])
 
     if not df_timeline.empty:
         df_timeline = df_timeline.sort_values(by='created_at', ascending=False)
         for _, row in df_timeline.iterrows():
-            c1, c2, c3, c4 = st.columns([1, 2, 4, 1])
-            c1.markdown(f"**{row['type']}**")
-            c2.write(row['created_at'].strftime("%H:%M"))
-            c3.write(f"**{row['pseudo']}** : {row['details']}")
-            if c4.button("❌", key=f"del_{row['type']}_{row['id']}"):
-                supabase.table("drinks" if row['type'] == '🍹' else "meals").delete().eq("id", row['id']).execute()
-                st.cache_data.clear()
-                st.rerun()
+            with st.container():
+                c_texte, c_suppr = st.columns([5, 1])
+                with c_texte:
+                    st.markdown(f"{row['type']} **{row['created_at'].strftime('%H:%M')}** — **{row['pseudo']}** : {row['details']}")
+                with c_suppr:
+                    if st.button("❌", key=f"del_{row['type']}_{row['id']}", use_container_width=True):
+                        supabase.table("drinks" if row['type'] == '🍹' else "meals").delete().eq("id", row['id']).execute()
+                        st.cache_data.clear()
+                        st.rerun()
     else:
-        st.write("Aucune entrée récente.")
+        st.write("Aucune entrée récente sur cette table.")
 st.divider()
 
 # --- 5. CONFIGURATION ÉQUIPE ---
-with st.expander("⚙️ Gérer l'équipe (Poids, Ajouter, Supprimer)", expanded=False):
+with st.expander("⚙️ 5. Gérer l'équipe (Poids, Ajouter, Supprimer)", expanded=not profils):
     onglet_Ajusteur, tab_Ajouter, tab_Supprimer = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité", "🗑️ Supprimer un profil"])
     
     with onglet_Ajusteur:
-        with st.form("form_poids"):
-            cols = st.columns(len(profils) if len(profils) > 0 else 1)
-            nouveaux_poids = {}
-            for i, (nom, info) in enumerate(profils.items()):
-                with cols[i % len(cols)]:
-                    st.markdown(f"<h5 style='color: orange;'>{nom}</h5>", unsafe_allow_html=True)
-                    nouveaux_poids[nom] = st.number_input("Poids (kg)", min_value=40, max_value=150, value=info["poids"], key=f"input_poids_{nom}")
-            if st.form_submit_button("Enregistrer les poids 💾"):
-                for nom in profils.keys():
-                    supabase.table("profils").update({"poids": nouveaux_poids[nom]}).eq("id", profils[nom]["id"]).execute()
-                st.cache_data.clear()
-                st.rerun()
+        if not profils: st.write("Aucun profil à ajuster.")
+        else:
+            with st.form("form_poids"):
+                cols = st.columns(len(profils) if len(profils) > 0 else 1)
+                nouveaux_poids = {}
+                for i, (nom, info) in enumerate(profils.items()):
+                    with cols[i % len(cols)]:
+                        st.markdown(f"<h5 style='color: orange;'>{nom}</h5>", unsafe_allow_html=True)
+                        nouveaux_poids[nom] = st.number_input("Poids (kg)", min_value=40, max_value=150, value=info["poids"], key=f"input_poids_{nom}")
+                if st.form_submit_button("Enregistrer les poids 💾"):
+                    for nom in profils.keys():
+                        supabase.table("profils").update({"poids": nouveaux_poids[nom]}).eq("id", profils[nom]["id"]).execute()
+                    st.cache_data.clear()
+                    st.rerun()
                 
     with tab_Ajouter:
-        if len(profils) >= 10: st.warning("🛑 Limite de 10 personnes atteinte pour ce groupe.")
+        if len(profils) >= 10: st.warning("🛑 Limite de 10 personnes atteinte.")
         else:
             c1, c2, c3 = st.columns(3)
-            with c1: nouveau_nom = st.text_input("Nom de l'invité")
+            with c1: nouveau_nom = st.text_input("Nom de l'invité (Unique)")
             with c2: nouveau_sexe = st.selectbox("Sexe", ["Homme", "Femme"])
             with c3: nouveau_poids_inv = st.number_input("Poids (kg)", 40, 150, 70)
-            if st.button("Ajouter"):
+            if st.button("Ajouter à la table"):
                 if nouveau_nom and nouveau_nom not in profils:
                     supabase.table("profils").insert({"pseudo": nouveau_nom, "sexe": nouveau_sexe, "poids": nouveau_poids_inv, "groupe": groupe_actif}).execute()
                     st.cache_data.clear()
@@ -423,15 +470,13 @@ st.divider()
 
 # --- 7. FAQ ---
 st.markdown("<div id='faq'></div>", unsafe_allow_html=True)
-with st.expander("❓ FAQ - Guide d'utilisation", expanded=True):
+with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
     st.markdown("""
     ### Questions fréquentes
     * **Comment fonctionne le système de groupes ?**
-      Changez le texte dans la section **"Groupe Actif"** dans la barre latérale. Taper un nom inédit crée instantanément un nouvel espace indépendant. Partagez ensuite ce même nom avec vos invités.
+      Sélectionnez une table dans le menu déroulant ou cliquez sur `➕ Créer une nouvelle table...` pour générer un salon vierge instantanément.
     * **Pourquoi déclarer un repas ?**
-      La présence de nourriture dans l'estomac retarde la diffusion de l'alcool. Déclarer un repas permet à l'algorithme d'allonger le temps pour atteindre le pic d'alcoolémie, lissant ainsi les courbes pour mieux refléter la réalité.
-    * **Quelle est la différence entre "Taux Actuel" et "Max projeté" ?**
-      Le taux actuel correspond à l'estimation mathématique exacte à l'instant T. Le taux maximum projeté tient compte de la phase d'absorption des derniers verres enregistrés qui n'ont pas encore fini de faire monter votre alcoolémie.
+      La nourriture retarde l'absorption. L'algorithme lissera la courbe et repoussera le pic de concentration pour être plus fidèle à la biologie humaine.
     """)
 
 # --- 8. MENTIONS LÉGALES ---
