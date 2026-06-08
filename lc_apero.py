@@ -481,7 +481,19 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
       Oui, toutes les personnes qui possèdent le lien de l'application et qui sélectionnent votre "Table" peuvent voir le graphique et l'historique associés à ce groupe.
     """)
 
-# --- 8. MENTIONS LÉGALES ---
+# --- 8. VERSIONS & MISES À JOUR ---
+with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
+    st.markdown("""
+    **Version actuelle : V2.0**
+    
+    **Quoi de neuf dans cette version ?**
+    * 🌐 **L'arrivée des "Tables"** : La grande nouveauté ! Il est désormais possible de créer et de basculer entre différents groupes (ou événements) en parallèle, sans que les historiques et les profils ne se mélangent.
+    * ⚙️ **Mise à jour dynamique de l'interface** en fonction du groupe sélectionné.
+    * ❓ Ajout de la **FAQ** pour accompagner les nouveaux venus.
+    * ⚖️ Clarification des **Mentions Légales** en pied de page.
+    """)
+
+# --- 9. MENTIONS LÉGALES ---
 st.markdown("""
     <div style='text-align: center; color: #888888; font-size: 11px; margin-top: 30px; padding-bottom: 30px; line-height: 1.5;'>
         ⚠️ <b>AVERTISSEMENT LÉGAL ET DE SANTÉ</b><br><br>
@@ -490,6 +502,6 @@ st.markdown("""
         à une prise de sang ou à un avis médical. Chaque métabolisme est unique et réagit différemment à l'alcool.<br><br>
         L'abus d'alcool est dangereux pour la santé, à consommer avec modération. En cas de doute, la règle d'or absolue s'applique : 
         <b>Si tu as bu, tu ne conduis pas !</b><br><br>
-        <i>Et surtout, ne mange pas trop gras, trop salé, trop sucré...</i>
+        <i>Et surtout, ne mange pas trop de cacahuètes...</i>
     </div>
     """, unsafe_allow_html=True)
