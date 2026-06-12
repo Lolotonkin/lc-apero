@@ -52,27 +52,6 @@ st.markdown("""
     div[data-testid="stExpander"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; }
     div[data-testid="stExpander"] summary { color: #FF9800 !important; font-weight: bold !important; }
     div[data-testid="stMetricValue"] { color: #FF9800 !important; }
-
-    /* Timeline CSS (Nouveau V2.1) */
-    .timeline-row { 
-        border-left: 3px solid #FF9800; 
-        padding-left: 15px; 
-        margin-bottom: 5px; 
-    }
-    .time-badge { 
-        color: #FF9800; 
-        font-weight: bold; 
-        font-size: 1.2em; 
-    }
-    .pseudo-text { 
-        color: #FFFFFF; 
-        font-weight: bold; 
-        font-size: 1.1em;
-    }
-    .details-text {
-        color: #CCCCCC;
-        font-size: 0.9em;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -378,83 +357,33 @@ else:
     st.info("Aucun verre enregistré sur cette table.")
 st.divider()
 
-# --- 4. HISTORIQUE - VUE TIMELINE ---
-st.header("📋 4. Historique de la soirée")
-
-# Petit style CSS caché pour créer le visuel de la timeline
-st.markdown("""
-    <style>
-    .timeline-row { 
-        border-left: 3px solid #FF9800; 
-        padding-left: 15px; 
-        margin-bottom: 5px; 
-    }
-    .time-badge { 
-        color: #FF9800; 
-        font-weight: bold; 
-        font-size: 1.2em; 
-    }
-    .pseudo-text { 
-        color: #FFFFFF; 
-        font-weight: bold; 
-        font-size: 1.1em;
-    }
-    .details-text {
-        color: #CCCCCC;
-        font-size: 0.9em;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-with st.expander("👀 Afficher la Timeline (24h)", expanded=True):
+# --- 4. HISTORIQUE COMPACT ---
+st.header("📋 4. Historique")
+with st.expander("👀 Afficher / Masquer l'historique récent (24h)", expanded=True):
     df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_verres.empty else pd.DataFrame()
-    if not df_verres_recent.empty: 
-        df_verres_recent['type'] = '🍹'
-        df_verres_recent['details'] = df_verres_recent['boisson']
-    else: 
-        df_verres_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
+    if not df_verres_recent.empty: df_verres_recent['type'], df_verres_recent['details'] = '🍹', df_verres_recent['boisson']
+    else: df_verres_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
 
     df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_repas.empty else pd.DataFrame()
-    if not df_repas_recent.empty: 
-        df_repas_recent['type'] = '🍽️'
-        df_repas_recent['details'] = 'A pris un repas solide'
-    else: 
-        df_repas_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
+    if not df_repas_recent.empty: df_repas_recent['type'], df_repas_recent['details'] = '🍽️', 'Repas'
+    else: df_repas_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
 
     df_timeline = pd.concat([df_verres_recent[['id', 'pseudo', 'created_at', 'type', 'details']], df_repas_recent[['id', 'pseudo', 'created_at', 'type', 'details']]])
 
     if not df_timeline.empty:
         df_timeline = df_timeline.sort_values(by='created_at', ascending=False)
-        
         for _, row in df_timeline.iterrows():
-            heure = row['created_at'].strftime('%H:%M')
-            icone = row['type']
-            pseudo = row['pseudo']
-            details = row['details']
-            
             with st.container():
-                # On divise en 3 colonnes : Heure | Contenu avec ligne orange | Bouton Supprimer
-                c_time, c_content, c_suppr = st.columns([1.5, 5, 1])
-                
-                with c_time:
-                    st.markdown(f"<div style='margin-top: 10px; text-align: right;'><span class='time-badge'>{heure}</span></div>", unsafe_allow_html=True)
-                    
-                with c_content:
-                    st.markdown(f"""
-                    <div class='timeline-row'>
-                        <span style='font-size: 1.2em;'>{icone}</span> <span class='pseudo-text'>{pseudo}</span><br>
-                        <span class='details-text'>{details}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
+                c_texte, c_suppr = st.columns([5, 1])
+                with c_texte:
+                    st.markdown(f"{row['type']} **{row['created_at'].strftime('%H:%M')}** — **{row['pseudo']}** : {row['details']}")
                 with c_suppr:
-                    # Le bouton de suppression reste parfaitement fonctionnel
                     if st.button("❌", key=f"del_{row['type']}_{row['id']}", use_container_width=True):
                         supabase.table("drinks" if row['type'] == '🍹' else "meals").delete().eq("id", row['id']).execute()
                         st.cache_data.clear()
                         st.rerun()
     else:
-        st.info("La soirée n'a pas encore commencé... ou tout le monde est à l'eau ! 🚰")
+        st.write("Aucune entrée récente sur cette table.")
 st.divider()
 
 # --- 5. CONFIGURATION ÉQUIPE ---
@@ -555,12 +484,9 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V2.1**
+    **Version actuelle : V2.0**
     
-    **Quoi de neuf dans cette version (V2.1) ?**
-    * ⏱️ **Nouvel Historique (Timeline) :** L'affichage de l'historique a été totalement repensé sous forme de ligne du temps visuelle pour plus de clarté en soirée. L'heure, les profils et les consommations sont désormais mis en valeur avec un design plus moderne qui retrace le fil de la soirée !
-    
-    *Précédemment dans la V2.0 :*
+    **Quoi de neuf dans cette version ?**
     * 🌐 **L'arrivée des "Tables"** : La grande nouveauté ! Il est désormais possible de créer et de basculer entre différents groupes (ou événements) en parallèle, sans que les historiques et les profils ne se mélangent.
     * ⚙️ **Mise à jour dynamique de l'interface** en fonction du groupe sélectionné.
     * ❓ Ajout de la **FAQ** pour accompagner les nouveaux venus.
@@ -576,6 +502,6 @@ st.markdown("""
         à une prise de sang ou à un avis médical. Chaque métabolisme est unique et réagit différemment à l'alcool.<br><br>
         L'abus d'alcool est dangereux pour la santé, à consommer avec modération. En cas de doute, la règle d'or absolue s'applique : 
         <b>Si tu as bu, tu ne conduis pas !</b><br><br>
-        <i>Et surtout, ne mange pas trop gras, trop sucré, trop salé...</i>
+        <i>Et surtout, ne mange pas trop de cacahuètes...</i>
     </div>
     """, unsafe_allow_html=True)
