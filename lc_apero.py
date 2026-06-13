@@ -347,16 +347,18 @@ else:
 
     for i, nom in enumerate(profils.keys()):
         taux_actuel = df_graphique[nom].iloc[idx_maintenant] if nom in df_graphique.columns else 0.0
-        taux_max = df_graphique[nom].max() if nom in df_graphique.columns else 0.0
-        donnees_futures = df_graphique[nom].loc[maintenant_arrondi:] if nom in df_graphique.columns else pd.Series()
         
-        if taux_actuel > 0.01 or (not donnees_futures.empty and donnees_futures.max() > 0.01):
+        # Le max et les prévisions sont calculés uniquement sur les données de maintenant à +12h
+        donnees_futures = df_graphique[nom].loc[maintenant_arrondi:] if nom in df_graphique.columns else pd.Series()
+        taux_max_futur = donnees_futures.max() if not donnees_futures.empty else 0.0
+        
+        if taux_actuel > 0.01 or (not donnees_futures.empty and taux_max_futur > 0.01):
             temps_sobre = donnees_futures[donnees_futures <= 0.01]
             retour_zero = temps_sobre.index[0].strftime("%H:%M") if not temps_sobre.empty else "Demain"
         else:
             retour_zero = "À jeun"
             
-        if donnees_futures.empty or donnees_futures.max() < 0.5:
+        if donnees_futures.empty or taux_max_futur < 0.5:
             heure_conduite = "Maintenant ✅"
         else:
             heure_pic = donnees_futures.idxmax()
@@ -367,11 +369,11 @@ else:
         with cols_dashboard[i % len(cols_dashboard)]:
             st.markdown(f"#### {nom}")
             st.metric(label="Taux Actuel", value=f"{taux_actuel:.2f} g/L")
-            st.markdown(f"**Max projeté :** {taux_max:.2f} g/L")
+            st.markdown(f"**Max projeté :** {taux_max_futur:.2f} g/L")
             st.markdown(f"**🚗 Conduite (<0.5) :** {heure_conduite}")
             st.markdown(f"**💧 À jeun (0.0) :** {retour_zero}")
             
-        texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f}g/L (Max: {taux_max:.2f})\n"
+        texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f}g/L (Max: {taux_max_futur:.2f})\n"
 
     texte_wa_encode = urllib.parse.quote(texte_whatsapp)
     lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
@@ -544,22 +546,20 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
       Descendez à la section "4. Historique". Vous y verrez toutes les consommations des dernières 24h. Cliquez simplement sur la croix rouge (❌) à côté du verre concerné pour l'effacer définitivement.
       
     * **Qu'est-ce que le "Max projeté" dans le tableau de bord ?**
-      C'est le pic d'alcoolémie estimé. Quand vous buvez, le taux ne monte pas instantanément. L'application calcule à quel niveau votre taux va culminer dans les minutes ou les heures qui suivent, en fonction de tout ce qui a été ingéré.
+      C'est le pic d'alcoolémie à venir, c'est-à-dire le taux le plus élevé que vous atteindrez dans le futur, sans tenir compte des pics passés. Si vous êtes déjà en train de redescendre, votre "Max projeté" sera simplement votre taux actuel.
     """)
 
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V2.1**
+    **Version actuelle : V2.2**
     
-    **Quoi de neuf dans cette version (V2.1) ?**
+    **Quoi de neuf dans cette version (V2.2) ?**
+    * 🔮 **Correction du Max Projeté :** L'indicateur "Max projeté" ne prend désormais en compte que l'avenir. Si un participant a eu un pic à 2g/L hier soir, mais qu'il est redescendu et reprend une bière aujourd'hui, le max n'affichera pas 2g/L de manière persistante, mais uniquement le nouveau pic à venir. 
+    
+    *Précédemment dans la V2.1 :*
     * 🥨 **Distinction Repas / Grignotage :** Il est désormais possible de déclarer un "Grignotage (Apéro)" plutôt qu'un repas complet. Le calcul d'absorption s'adapte (protection d'1h30 contre 3h pour un repas massif).
     * ⏱️ **Maintien de l'Historique Timeline :** La vue en ligne du temps a été conservée suite aux tests utilisateurs.
-    
-    *Précédemment dans la V2.0 :*
-    * 🌐 **L'arrivée des "Tables"** : La grande nouveauté ! Il est désormais possible de créer et de basculer entre différents groupes (ou événements) en parallèle, sans que les historiques et les profils ne se mélangent.
-    * ⚙️ **Mise à jour dynamique de l'interface** en fonction du groupe sélectionné.
-    * ❓ Ajout de la **FAQ** pour accompagner les nouveaux venus.
     """)
 
 # --- 9. MENTIONS LÉGALES ---
