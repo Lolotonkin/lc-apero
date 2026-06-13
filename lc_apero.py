@@ -52,6 +52,27 @@ st.markdown("""
     div[data-testid="stExpander"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; }
     div[data-testid="stExpander"] summary { color: #FF9800 !important; font-weight: bold !important; }
     div[data-testid="stMetricValue"] { color: #FF9800 !important; }
+
+    /* Timeline CSS */
+    .timeline-row { 
+        border-left: 3px solid #FF9800; 
+        padding-left: 15px; 
+        margin-bottom: 5px; 
+    }
+    .time-badge { 
+        color: #FF9800; 
+        font-weight: bold; 
+        font-size: 1.2em; 
+    }
+    .pseudo-text { 
+        color: #FFFFFF; 
+        font-weight: bold; 
+        font-size: 1.1em;
+    }
+    .details-text {
+        color: #CCCCCC;
+        font-size: 0.9em;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -127,9 +148,14 @@ else:
 with st.expander("⚙️ Paramètres de l'application", expanded=False):
     envoyer_wa = st.checkbox("Activer les alertes WhatsApp", value=True)
 
-def envoyer_alerte_whatsapp(pseudo, detail_conso, est_repas=False):
+def envoyer_alerte_whatsapp(pseudo, detail_conso, type_event="Verre"):
     if not URL_WEBHOOK_WHATSAPP or not envoyer_wa: return
-    texte = f"🍽️ *Suivi de soirée ({groupe_actif})* : {pseudo} déclare un repas. 🥪" if est_repas else f"🍹 *Suivi de soirée ({groupe_actif})* : {pseudo} a pris : {detail_conso} 📈"
+    if type_event == "Repas":
+        texte = f"🍽️ *Suivi de soirée ({groupe_actif})* : {pseudo} déclare un repas complet. 🥪"
+    elif type_event == "Grignotage":
+        texte = f"🥨 *Suivi de soirée ({groupe_actif})* : {pseudo} grignote à l'apéro. 🥜"
+    else:
+        texte = f"🍹 *Suivi de soirée ({groupe_actif})* : {pseudo} a pris : {detail_conso} 📈"
     try: requests.post(URL_WEBHOOK_WHATSAPP, json={"message": texte, "pseudo": pseudo})
     except: pass
 
@@ -183,8 +209,11 @@ def clean_tz(series):
 df_verres = pd.DataFrame(boissons_nuageuses) if boissons_nuageuses else pd.DataFrame(columns=['id', 'pseudo', 'boisson', 'alcool_g', 'created_at', 'groupe'])
 if not df_verres.empty: df_verres['created_at'] = clean_tz(df_verres['created_at'])
 
-df_repas = pd.DataFrame(repas_nuage) if repas_nuage else pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'groupe'])
-if not df_repas.empty: df_repas['created_at'] = clean_tz(df_repas['created_at'])
+df_repas = pd.DataFrame(repas_nuage) if repas_nuage else pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'groupe', 'type'])
+if not df_repas.empty: 
+    df_repas['created_at'] = clean_tz(df_repas['created_at'])
+    if 'type' not in df_repas.columns:
+        df_repas['type'] = 'Repas'
 
 df_graphique = pd.DataFrame(index=axe_temps)
 idx_maintenant = df_graphique.index.get_indexer([maintenant_arrondi], method='nearest')[0]
@@ -209,12 +238,30 @@ for nom, info in profils.items():
         for _, verre in verres_perso.iterrows():
             t_drink = verre['created_at']
             a_mange = False
+            a_grignote = False
+            
             if not repas_perso.empty:
-                repas_valides = repas_perso[(repas_perso['created_at'] >= t_drink - pd.Timedelta(hours=3)) & (repas_perso['created_at'] <= t_drink + pd.Timedelta(hours=1))]
-                if not repas_valides.empty: a_mange = True
+                repas_complets = repas_perso[repas_perso['type'] == 'Repas']
+                grignotages = repas_perso[repas_perso['type'] == 'Grignotage']
                 
-            t_pic = 1.0 if a_mange else 0.5 
-            bio_factor = 0.8 if a_mange else 1.0
+                if not repas_complets.empty:
+                    valides_repas = repas_complets[(repas_complets['created_at'] >= t_drink - pd.Timedelta(hours=3)) & (repas_complets['created_at'] <= t_drink + pd.Timedelta(hours=1))]
+                    if not valides_repas.empty: a_mange = True
+                
+                if not grignotages.empty:
+                    valides_grig = grignotages[(grignotages['created_at'] >= t_drink - pd.Timedelta(hours=1.5)) & (grignotages['created_at'] <= t_drink + pd.Timedelta(hours=0.5))]
+                    if not valides_grig.empty: a_grignote = True
+                
+            if a_mange:
+                t_pic = 1.0 
+                bio_factor = 0.8 
+            elif a_grignote:
+                t_pic = 0.75 
+                bio_factor = 0.9 
+            else:
+                t_pic = 0.5 
+                bio_factor = 1.0 
+                
             c_max_theo = (verre['alcool_g'] / (poids * coef_diffusion)) * bio_factor
             
             t_start_search = t_drink.floor('5min')
@@ -262,16 +309,17 @@ st.header("🍹 1. Déclarer")
 if not profils:
     st.error("⚠️ Cette table est vide. Descendez à la section '5. Gérer l'équipe' pour ajouter des invités !")
 else:
-    choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️"], horizontal=True)
+    choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️", "Grignotage (Apéro) 🥨"], horizontal=True)
     moment_actuel = datetime.datetime.now().isoformat()
 
-    if "repas" in choix_type.lower():
+    if "repas" in choix_type.lower() or "grignotage" in choix_type.lower():
+        type_repas = "Repas" if "repas" in choix_type.lower() else "Grignotage"
         Qui = st.selectbox("Qui a mangé ?", list(profils.keys()))
-        if st.button("Enregistrer le repas 💾"):
-            supabase.table("meals").insert({"pseudo": Qui, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
+        if st.button("Enregistrer 💾"):
+            supabase.table("meals").insert({"pseudo": Qui, "created_at": moment_actuel, "groupe": groupe_actif, "type": type_repas}).execute()
             st.cache_data.clear() 
-            envoyer_alerte_whatsapp(Qui, "", est_repas=True)
-            st.success(f"🍽️ Repas enregistré pour {Qui}")
+            envoyer_alerte_whatsapp(Qui, "", type_event=type_repas)
+            st.success(f"✔️ {type_repas} enregistré pour {Qui}")
             st.rerun()
     else:
         c1, c2, c3 = st.columns(3)
@@ -284,7 +332,7 @@ else:
             alcool_g = float((Volume_cl * 10) * (Degre_Alcool / 100) * 0.8)
             supabase.table("drinks").insert({"pseudo": Qui, "boisson": boisson_label, "alcool_g": alcool_g, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
             st.cache_data.clear() 
-            envoyer_alerte_whatsapp(Qui, boisson_label, est_repas=False)
+            envoyer_alerte_whatsapp(Qui, boisson_label, type_event="Verre")
             st.success(f"🍹 Verre enregistré pour {Qui}")
             st.rerun()
 st.divider()
@@ -357,33 +405,57 @@ else:
     st.info("Aucun verre enregistré sur cette table.")
 st.divider()
 
-# --- 4. HISTORIQUE COMPACT ---
-st.header("📋 4. Historique")
-with st.expander("👀 Afficher / Masquer l'historique récent (24h)", expanded=True):
+# --- 4. HISTORIQUE - VUE TIMELINE ---
+st.header("📋 4. Historique de la soirée")
+
+with st.expander("👀 Afficher la Timeline (24h)", expanded=True):
     df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_verres.empty else pd.DataFrame()
-    if not df_verres_recent.empty: df_verres_recent['type'], df_verres_recent['details'] = '🍹', df_verres_recent['boisson']
-    else: df_verres_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
+    if not df_verres_recent.empty: 
+        df_verres_recent['icone'] = '🍹'
+        df_verres_recent['details'] = df_verres_recent['boisson']
+    else: 
+        df_verres_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'icone', 'details'])
 
     df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_repas.empty else pd.DataFrame()
-    if not df_repas_recent.empty: df_repas_recent['type'], df_repas_recent['details'] = '🍽️', 'Repas'
-    else: df_repas_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'type', 'details'])
+    if not df_repas_recent.empty: 
+        df_repas_recent['icone'] = df_repas_recent['type'].apply(lambda x: '🥨' if x == 'Grignotage' else '🍽️')
+        df_repas_recent['details'] = df_repas_recent['type'].apply(lambda x: 'A grignoté (Apéro)' if x == 'Grignotage' else 'A pris un repas complet')
+    else: 
+        df_repas_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'icone', 'details'])
 
-    df_timeline = pd.concat([df_verres_recent[['id', 'pseudo', 'created_at', 'type', 'details']], df_repas_recent[['id', 'pseudo', 'created_at', 'type', 'details']]])
+    df_timeline = pd.concat([df_verres_recent[['id', 'pseudo', 'created_at', 'icone', 'details']], df_repas_recent[['id', 'pseudo', 'created_at', 'icone', 'details']]])
 
     if not df_timeline.empty:
         df_timeline = df_timeline.sort_values(by='created_at', ascending=False)
+        
         for _, row in df_timeline.iterrows():
+            heure = row['created_at'].strftime('%H:%M')
+            icone = row['icone']
+            pseudo = row['pseudo']
+            details = row['details']
+            
             with st.container():
-                c_texte, c_suppr = st.columns([5, 1])
-                with c_texte:
-                    st.markdown(f"{row['type']} **{row['created_at'].strftime('%H:%M')}** — **{row['pseudo']}** : {row['details']}")
+                c_time, c_content, c_suppr = st.columns([1.5, 5, 1])
+                
+                with c_time:
+                    st.markdown(f"<div style='margin-top: 10px; text-align: right;'><span class='time-badge'>{heure}</span></div>", unsafe_allow_html=True)
+                    
+                with c_content:
+                    st.markdown(f"""
+                    <div class='timeline-row'>
+                        <span style='font-size: 1.2em;'>{icone}</span> <span class='pseudo-text'>{pseudo}</span><br>
+                        <span class='details-text'>{details}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
                 with c_suppr:
-                    if st.button("❌", key=f"del_{row['type']}_{row['id']}", use_container_width=True):
-                        supabase.table("drinks" if row['type'] == '🍹' else "meals").delete().eq("id", row['id']).execute()
+                    if st.button("❌", key=f"del_{icone}_{row['id']}", use_container_width=True):
+                        table_del = "drinks" if icone == '🍹' else "meals"
+                        supabase.table(table_del).delete().eq("id", row['id']).execute()
                         st.cache_data.clear()
                         st.rerun()
     else:
-        st.write("Aucune entrée récente sur cette table.")
+        st.info("La soirée n'a pas encore commencé... ou tout le monde est à l'eau ! 🚰")
 st.divider()
 
 # --- 5. CONFIGURATION ÉQUIPE ---
@@ -465,32 +537,29 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
     * **Comment fonctionne le système de tables ?**
       Utilisez le menu déroulant tout en haut pour naviguer entre les soirées ou en créer une nouvelle en choisissant `➕ Créer une nouvelle table...`. Chaque table a son propre historique et ses propres invités.
       
-    * **Pourquoi l'application me demande-t-elle de déclarer un repas ?**
-      Manger ne fait pas baisser l'alcoolémie, mais cela ralentit considérablement l'absorption de l'alcool dans le sang. L'algorithme lissera la courbe et repoussera le pic de concentration pour être plus fidèle à la biologie humaine (absorption en 1h à jeun, contre 3h au cours d'un repas).
+    * **Pourquoi l'application me demande-t-elle de déclarer un repas ou un grignotage ?**
+      Manger ne fait pas baisser l'alcoolémie, mais cela ralentit considérablement l'absorption de l'alcool dans le sang. L'algorithme lissera la courbe en conséquence. Un repas complet repousse le pic sur une période d'environ 3 heures, tandis qu'un grignotage d'apéro le repousse sur environ 1 heure et demie.
       
     * **Oups, je me suis trompé de verre ou de personne. Que faire ?**
-      Pas de panique ! Descendez à la section "4. Historique". Vous y verrez toutes les consommations des dernières 24h. Cliquez simplement sur la croix rouge (❌) à côté du verre concerné pour l'effacer définitivement.
+      Descendez à la section "4. Historique". Vous y verrez toutes les consommations des dernières 24h. Cliquez simplement sur la croix rouge (❌) à côté du verre concerné pour l'effacer définitivement.
       
     * **Qu'est-ce que le "Max projeté" dans le tableau de bord ?**
       C'est le pic d'alcoolémie estimé. Quand vous buvez, le taux ne monte pas instantanément. L'application calcule à quel niveau votre taux va culminer dans les minutes ou les heures qui suivent, en fonction de tout ce qui a été ingéré.
-      
-    * **Pourquoi mon taux met-il autant de temps à baisser sur le graphique ?**
-      Le foie d'un adulte en bonne santé élimine en moyenne entre 0.10 g/L et 0.15 g/L d'alcool par heure, de façon linéaire, et rien ne peut accélérer ce processus (ni le café, ni les douches froides). L'application utilise une constante d'élimination prudente de 0.15 g/L par heure.
-      
-    * **Est-ce que tout le monde peut voir ma consommation ?**
-      Oui, toutes les personnes qui possèdent le lien de l'application et qui sélectionnent votre "Table" peuvent voir le graphique et l'historique associés à ce groupe.
     """)
 
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V2.0**
+    **Version actuelle : V2.1**
     
-    **Quoi de neuf dans cette version ?**
+    **Quoi de neuf dans cette version (V2.1) ?**
+    * 🥨 **Distinction Repas / Grignotage :** Il est désormais possible de déclarer un "Grignotage (Apéro)" plutôt qu'un repas complet. Le calcul d'absorption s'adapte (protection d'1h30 contre 3h pour un repas massif).
+    * ⏱️ **Maintien de l'Historique Timeline :** La vue en ligne du temps a été conservée suite aux tests utilisateurs.
+    
+    *Précédemment dans la V2.0 :*
     * 🌐 **L'arrivée des "Tables"** : La grande nouveauté ! Il est désormais possible de créer et de basculer entre différents groupes (ou événements) en parallèle, sans que les historiques et les profils ne se mélangent.
     * ⚙️ **Mise à jour dynamique de l'interface** en fonction du groupe sélectionné.
     * ❓ Ajout de la **FAQ** pour accompagner les nouveaux venus.
-    * ⚖️ Clarification des **Mentions Légales** en pied de page.
     """)
 
 # --- 9. MENTIONS LÉGALES ---
@@ -502,6 +571,6 @@ st.markdown("""
         à une prise de sang ou à un avis médical. Chaque métabolisme est unique et réagit différemment à l'alcool.<br><br>
         L'abus d'alcool est dangereux pour la santé, à consommer avec modération. En cas de doute, la règle d'or absolue s'applique : 
         <b>Si tu as bu, tu ne conduis pas !</b><br><br>
-        <i>Et surtout, ne mange pas trop de cacahuètes...</i>
+        <i>Et surtout, ne mange pas trop gras, trop sucré, trop salé...</i>
     </div>
     """, unsafe_allow_html=True)
