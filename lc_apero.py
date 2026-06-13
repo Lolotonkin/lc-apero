@@ -78,7 +78,7 @@ st.markdown("""
 
 # --- CONNEXION SUPABASE ---
 SUPABASE_URL = "https://rjexlotreipfjbgpfcnt.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqZXhsb3RyZWlwZmpiZ3BmY250Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDUyOTkyNywiZXhwIjoyMDk2MTA1OTI3fQ.0vMnopwPCMQaOmzCPNcdc4HLqr1d1npoqL3xXNnxGQ8"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqZXhsb3RyZWlwZmpiZ3BmY250Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTt4MDUyOTkyNywiZXhwIjoyMDk2MTA1OTI3fQ.0vMnopwPCMQaOmzCPNcdc4HLqr1d1npoqL3xXNnxGQ8"
 
 @st.cache_resource
 def init_supabase():
@@ -107,7 +107,7 @@ def obtenir_toutes_les_tables():
 st.title("🍹 Suivi de soirée")
 st.markdown("<p style='text-align: right;'><a href='#faq' style='color: #FF9800; text-decoration: none;'>❓ Une question ? Consulter la FAQ en bas</a></p>", unsafe_allow_html=True)
 
-# --- GESTION DU CHOIX DE LA TABLE (MAIN BODY) ---
+# --- GESTION DU CHOIX DE LA TABLE ---
 st.markdown("### 🌐 Table active")
 tables_existantes = obtenir_toutes_les_tables()
 if "Haggis et les cafards" not in tables_existantes:
@@ -161,7 +161,7 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, type_event="Verre"):
 
 st.divider()
 
-# --- CHARGEMENT DES DONNÉES DE LA TABLE ACTIVE ---
+# --- CHARGEMENT DES DONNÉES ---
 @st.cache_data(ttl=2)
 def charger_profils(groupe):
     try:
@@ -310,7 +310,23 @@ if not profils:
     st.error("⚠️ Cette table est vide. Descendez à la section '5. Gérer l'équipe' pour ajouter des invités !")
 else:
     choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️", "Grignotage (Apéro) 🥨"], horizontal=True)
-    moment_actuel = datetime.datetime.now().isoformat()
+    
+    oubli = st.checkbox("🕰️ J'ai oublié de le noter sur le moment (modifier l'heure)")
+    maintenant_local = pd.Timestamp.now(tz='Europe/Paris')
+    
+    if oubli:
+        heure_perso = st.time_input("Heure de la consommation :", value=maintenant_local.time())
+        date_conso = maintenant_local.date()
+        
+        if heure_perso > maintenant_local.time() and maintenant_local.hour < 12:
+            date_conso = date_conso - datetime.timedelta(days=1)
+            
+        dt_combine = datetime.datetime.combine(date_conso, heure_perso)
+        moment_actuel = pd.Timestamp(dt_combine).tz_localize('Europe/Paris').isoformat()
+        affichage_heure = heure_perso.strftime("%H:%M")
+    else:
+        moment_actuel = maintenant_local.isoformat()
+        affichage_heure = maintenant_local.strftime("%H:%M")
 
     if "repas" in choix_type.lower() or "grignotage" in choix_type.lower():
         type_repas = "Repas" if "repas" in choix_type.lower() else "Grignotage"
@@ -318,8 +334,8 @@ else:
         if st.button("Enregistrer 💾"):
             supabase.table("meals").insert({"pseudo": Qui, "created_at": moment_actuel, "groupe": groupe_actif, "type": type_repas}).execute()
             st.cache_data.clear() 
-            envoyer_alerte_whatsapp(Qui, "", type_event=type_repas)
-            st.success(f"✔️ {type_repas} enregistré pour {Qui}")
+            envoyer_alerte_whatsapp(Qui, f"{type_repas} à {affichage_heure}", type_event=type_repas)
+            st.success(f"✔️ {type_repas} enregistré pour {Qui} à {affichage_heure}")
             st.rerun()
     else:
         c1, c2, c3 = st.columns(3)
@@ -332,8 +348,8 @@ else:
             alcool_g = float((Volume_cl * 10) * (Degre_Alcool / 100) * 0.8)
             supabase.table("drinks").insert({"pseudo": Qui, "boisson": boisson_label, "alcool_g": alcool_g, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
             st.cache_data.clear() 
-            envoyer_alerte_whatsapp(Qui, boisson_label, type_event="Verre")
-            st.success(f"🍹 Verre enregistré pour {Qui}")
+            envoyer_alerte_whatsapp(Qui, f"{boisson_label} à {affichage_heure}", type_event="Verre")
+            st.success(f"🍹 Verre enregistré pour {Qui} à {affichage_heure}")
             st.rerun()
 st.divider()
 
@@ -348,7 +364,6 @@ else:
     for i, nom in enumerate(profils.keys()):
         taux_actuel = df_graphique[nom].iloc[idx_maintenant] if nom in df_graphique.columns else 0.0
         
-        # Le max et les prévisions sont calculés uniquement sur les données de maintenant à +12h
         donnees_futures = df_graphique[nom].loc[maintenant_arrondi:] if nom in df_graphique.columns else pd.Series()
         taux_max_futur = donnees_futures.max() if not donnees_futures.empty else 0.0
         
@@ -428,6 +443,7 @@ with st.expander("👀 Afficher la Timeline (24h)", expanded=True):
     df_timeline = pd.concat([df_verres_recent[['id', 'pseudo', 'created_at', 'icone', 'details']], df_repas_recent[['id', 'pseudo', 'created_at', 'icone', 'details']]])
 
     if not df_timeline.empty:
+        # Tri chronologique inverse (le plus récent ou modifié en haut)
         df_timeline = df_timeline.sort_values(by='created_at', ascending=False)
         
         for _, row in df_timeline.iterrows():
@@ -539,27 +555,43 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
     * **Comment fonctionne le système de tables ?**
       Utilisez le menu déroulant tout en haut pour naviguer entre les soirées ou en créer une nouvelle en choisissant `➕ Créer une nouvelle table...`. Chaque table a son propre historique et ses propres invités.
       
+    * **Peut-on utiliser l'application à plusieurs sur des téléphones différents ?**
+      Absolument ! L'application est connectée à une base de données en temps réel. Scannez le QR code ou partagez le lien : dès qu'une personne ajoute un verre sur son téléphone, l'historique de la table est mis à jour pour tout le monde.
+      
+    * **Faut-il enregistrer le verre au début ou à la fin de la consommation ?**
+      Toujours au **début** (lors de votre première gorgée). L'algorithme calcule l'absorption et la montée du taux de manière progressive *après* l'heure indiquée. Si vous l'ajoutez à la fin, votre courbe sera artificiellement décalée dans le temps.
+      
+    * **Que se passe-t-il si j'utilise l'option "J'ai oublié" pour ajouter un verre dans le passé ?**
+      L'application insère le verre à l'heure exacte demandée. L'historique (Timeline) se met à jour chronologiquement en plaçant le verre à sa juste place dans le passé, et l'algorithme recalcule instantanément toute l'évolution des taux depuis cette heure-là.
+      
+    * **Comment l'application gère-t-elle le passage de minuit pour les verres oubliés ?**
+      Si vous ajoutez un verre à 01h30 du matin et indiquez "23h45" dans l'heure oubliée, le système comprend automatiquement (si vous êtes le matin avant midi) qu'il s'agit de 23h45 de la veille au soir, évitant ainsi de placer le verre dans le futur.
+      
     * **Pourquoi l'application me demande-t-elle de déclarer un repas ou un grignotage ?**
-      Manger ne fait pas baisser l'alcoolémie, mais cela ralentit considérablement l'absorption de l'alcool dans le sang. L'algorithme lissera la courbe en conséquence. Un repas complet repousse le pic sur une période d'environ 3 heures, tandis qu'un grignotage d'apéro le repousse sur environ 1 heure et demie.
+      Manger ne fait pas baisser l'alcoolémie, mais cela ralentit considérablement l'absorption de l'alcool dans le sang. L'algorithme lissera la courbe en conséquence. Un repas complet repousse le pic d'absorption sur une période d'environ 3 heures, tandis qu'un grignotage d'apéro le repousse sur environ 1 heure et demie.
+      
+    * **Comment l'application calcule-t-elle mon taux ?**
+      Elle se base sur une version adaptée de la formule scientifique de Widmark. Elle prend en compte la quantité d'alcool pur ingérée, votre poids, et un coefficient de diffusion lié à votre sexe biologique. Le taux d'élimination est fixé à une moyenne standard de 0,15 g/L par heure.
+      
+    * **Que se passe-t-il si je modifie le poids de quelqu'un en cours de soirée ?**
+      L'algorithme recalculera instantanément l'intégralité de sa courbe depuis son tout premier verre pour s'adapter rétroactivement à sa nouvelle donnée corporelle.
       
     * **Oups, je me suis trompé de verre ou de personne. Que faire ?**
-      Descendez à la section "4. Historique". Vous y verrez toutes les consommations des dernières 24h. Cliquez simplement sur la croix rouge (❌) à côté du verre concerné pour l'effacer définitivement.
+      Descendez à la section "4. Historique de la soirée". Vous y verrez toutes les consommations des dernières 24h. Cliquez simplement sur la croix rouge (❌) à côté de l'entrée concernée pour l'effacer définitivement, le graphique se mettra à jour.
       
     * **Qu'est-ce que le "Max projeté" dans le tableau de bord ?**
-      C'est le pic d'alcoolémie à venir, c'est-à-dire le taux le plus élevé que vous atteindrez dans le futur, sans tenir compte des pics passés. Si vous êtes déjà en train de redescendre, votre "Max projeté" sera simplement votre taux actuel.
+      C'est le pic d'alcoolémie à venir, c'est-à-dire le taux le plus élevé que vous atteindrez dans le futur, sans tenir compte des pics passés. Si vous êtes déjà en phase d'élimination (taux qui descend), votre "Max projeté" sera simplement votre taux actuel.
     """)
 
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V2.2**
+    **Version actuelle : V2.2 (Mis à jour)**
     
-    **Quoi de neuf dans cette version (V2.2) ?**
-    * 🔮 **Correction du Max Projeté :** L'indicateur "Max projeté" ne prend désormais en compte que l'avenir. Si un participant a eu un pic à 2g/L hier soir, mais qu'il est redescendu et reprend une bière aujourd'hui, le max n'affichera pas 2g/L de manière persistante, mais uniquement le nouveau pic à venir. 
-    
-    *Précédemment dans la V2.1 :*
-    * 🥨 **Distinction Repas / Grignotage :** Il est désormais possible de déclarer un "Grignotage (Apéro)" plutôt qu'un repas complet. Le calcul d'absorption s'adapte (protection d'1h30 contre 3h pour un repas massif).
-    * ⏱️ **Maintien de l'Historique Timeline :** La vue en ligne du temps a été conservée suite aux tests utilisateurs.
+    **Quoi de neuf dans cette mise à jour ?**
+    * 🕰️ **Saisie rétroactive intelligente :** Ajout de la case à cocher "J'ai oublié" permettant de forcer l'heure d'un verre ou d'un repas.
+    * 📋 **Reclassement automatique dans la Timeline :** Les consommations passées oubliées s'insèrent au bon endroit chronologique dans l'historique et recalculent proprement la courbe.
+    * 🔮 **Correction du Max Projeté :** L'indicateur "Max projeté" ne prend désormais en compte que l'avenir.
     """)
 
 # --- 9. MENTIONS LÉGALES ---
