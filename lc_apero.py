@@ -423,7 +423,7 @@ else:
     record_absolu_groupe = max([s['max_ever'] for s in stats_joueurs.values()]) if stats_joueurs else 0.0
     
     with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded=True):
-        st.markdown("<h4 style='color: orange; margin-bottom: 20px;'>Médailles & Sobriété</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='color: orange; margin-bottom: 20px;'>🔥 Record absolu de la table : {record_absolu_groupe:.2f} g/L</h4>", unsafe_allow_html=True)
         cols_stats = st.columns(len(profils))
         for i, (nom, stats) in enumerate(stats_joueurs.items()):
             
