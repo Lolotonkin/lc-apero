@@ -294,21 +294,25 @@ for nom, info in profils.items():
         
     df_graphique[nom] = taux_liste
     
-    # EXTRACTION DES STATISTIQUES GLOBALES
+    # --- V3 : EXTRACTION DES STATISTIQUES GLOBALES ---
     max_historique = max(taux_dict.values()) if taux_dict else 0.0
     
     if not verres_perso.empty:
         dernier_verre = verres_perso['created_at'].max()
-        delta = maintenant - dernier_verre
-        if delta.days == 0: texte_jours = "Aujourd'hui 🍻"
-        elif delta.days == 1: texte_jours = "1 jour 💧"
-        else: texte_jours = f"{delta.days} jours 💧"
+        # CORRECTION : Calcul sur les jours calendaires
+        jours_ecoules = (maintenant.date() - dernier_verre.date()).days
+        
+        if jours_ecoules == 0: texte_jours = "Aujourd'hui 🍻"
+        elif jours_ecoules == 1: texte_jours = "Hier 💧"
+        else: texte_jours = f"{jours_ecoules} jours 💧"
     else:
+        jours_ecoules = -1
         texte_jours = "Jamais bu 😇"
         
     stats_joueurs[nom] = {
         "max_ever": max_historique,
         "texte_jours": texte_jours,
+        "jours_ecoules": jours_ecoules,
         "total_verres": len(verres_perso)
     }
 
@@ -415,15 +419,41 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
     st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
     
-    # --- NOUVEAU : HALL OF FAME ---
-    with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded=False):
+    # --- V3 : HALL OF FAME ---
+    record_absolu_groupe = max([s['max_ever'] for s in stats_joueurs.values()]) if stats_joueurs else 0.0
+    
+    with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded=True):
         st.markdown("<h4 style='color: orange; margin-bottom: 20px;'>Médailles & Sobriété</h4>", unsafe_allow_html=True)
         cols_stats = st.columns(len(profils))
         for i, (nom, stats) in enumerate(stats_joueurs.items()):
+            
+            # 1. SYSTÈME DE BADGES ALCOOL (Records)
+            score = stats['max_ever']
+            badge_record = ""
+            if score == record_absolu_groupe and score > 0.01: badge_record += "👑 "
+            if score >= 2.0: badge_record += "🧟‍♂️"
+            elif score >= 1.5: badge_record += "🏴‍☠️"
+            elif score >= 1.0: badge_record += "🥳"
+            elif score >= 0.5: badge_record += "🍺"
+            elif score > 0.0: badge_record += "👼"
+            else: badge_record += "🚰"
+
+            # 2. SYSTÈME DE BADGES SOBRIÉTÉ (Streaks)
+            jours = stats['jours_ecoules']
+            if jours == -1: badge_sobriete = "🕊️ Pureté"
+            elif jours >= 30: badge_sobriete = "🧘 1 mois+"
+            elif jours >= 14: badge_sobriete = "🛡️ 2 sem+"
+            elif jours >= 7: badge_sobriete = "🌱 1 sem+"
+            elif jours >= 5: badge_sobriete = "🐫 5j+"
+            elif jours >= 3: badge_sobriete = "🔋 3j+"
+            elif jours >= 1: badge_sobriete = "☀️ 1j+"
+            else: badge_sobriete = "🔥 En activité"
+
             with cols_stats[i % len(cols_stats)]:
                 st.markdown(f"**{nom}**")
-                st.markdown(f"**Record absolu :** {stats['max_ever']:.2f} g/L 🥇")
+                st.markdown(f"**Record absolu :** {score:.2f} g/L {badge_record}")
                 st.markdown(f"**Dernier verre :** {stats['texte_jours']}")
+                st.markdown(f"**Sobriété :** `{badge_sobriete}`")
                 st.markdown(f"**Total bu :** {stats['total_verres']} verres")
 st.divider()
 
@@ -616,13 +646,13 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V2.3 (Mise à jour majeure des Stats)**
+    **Version actuelle : V3.0 (Système de Badges dynamique)**
     
-    **Quoi de neuf dans cette mise à jour (V2.3) ?**
-    * 🏆 **Hall of Fame :** Ajout d'un encart "Statistiques globales" (Record du taux le plus haut jamais atteint, nombre de jours sans boire, total des verres ingérés).
-    * 🕰️ **Saisie rétroactive intelligente :** Ajout de la case à cocher "J'ai oublié" permettant de forcer l'heure d'un verre ou d'un repas.
-    * 📋 **Reclassement automatique dans la Timeline :** Les consommations passées oubliées s'insèrent au bon endroit chronologique dans l'historique et recalculent proprement la courbe.
-    * 🔮 **Correction du Max Projeté :** L'indicateur principal du tableau de bord ne prend désormais en compte que l'avenir.
+    **Quoi de neuf dans cette mise à jour (V3.0) ?**
+    * 👑 **Le Roi de la soirée :** Une couronne se place dynamiquement sur le joueur ayant le plus gros record.
+    * 🏅 **Badges de record :** Légende 🧟‍♂️, Pirate 🏴‍☠️, Fêtard 🥳...
+    * 🧘 **Streaks de Sobriété :** Suivi dynamique des jours consécutifs sans boire (perd le badge dès qu'un verre est ajouté !).
+    * 🕰️ **Correction du bug "Hier" :** L'historique calcule maintenant les jours calendaires au lieu de tranches strictes de 24h.
     """)
 
 # --- 9. MENTIONS LÉGALES ---
