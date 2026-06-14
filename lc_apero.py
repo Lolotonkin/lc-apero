@@ -49,7 +49,7 @@ st.markdown("""
     }
     
     /* Expanders & Métriques */
-    div[data-testid="stExpander"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; }
+    div[data-testid="stExpander"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; margin-bottom: 5px; }
     div[data-testid="stExpander"] summary { color: #FF9800 !important; font-weight: bold !important; font-size: 1.15em !important; }
     div[data-testid="stMetricValue"] { color: #FF9800 !important; }
 
@@ -107,7 +107,7 @@ def obtenir_toutes_les_tables():
 col_titre, col_maj = st.columns([3, 1])
 with col_titre:
     st.title("🍹 Suivi de soirée")
-    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 3.3</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 3.4</h5>", unsafe_allow_html=True)
 with col_maj:
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🔄 Mettre à jour", use_container_width=True):
@@ -211,7 +211,6 @@ axe_temps = pd.date_range(start=debut_calcul, end=fin_calcul, freq='5min', tz='E
 PENTE_ELIMINATION_5MIN = 0.15 * (5 / 60)
 
 def clean_tz(series):
-    # Sécurité anti-crash : encaisse les variations de structure de chaînes textuelles et d'anciennes dates UTC
     dt = pd.to_datetime(series, errors='coerce', format='mixed', utc=True)
     return dt.dt.tz_convert('Europe/Paris')
 
@@ -230,7 +229,6 @@ if not df_repas.empty:
 df_graphique = pd.DataFrame(index=axe_temps)
 idx_maintenant = df_graphique.index.get_indexer([maintenant_arrondi], method='nearest')[0]
 
-# Dictionnaire pour stocker les statistiques globales
 stats_joueurs = {}
 
 for nom, info in profils.items():
@@ -306,7 +304,6 @@ for nom, info in profils.items():
         
     df_graphique[nom] = taux_liste
     
-    # --- V3 : EXTRACTION DES STATISTIQUES GLOBALES ---
     max_historique = max(taux_dict.values()) if taux_dict else 0.0
     
     if not verres_perso.empty:
@@ -338,12 +335,13 @@ with col_qr:
 with col_texte:
     st.markdown("<h3 style='color: orange; margin-top: 0px;'>🔗 Partager l'application</h3>", unsafe_allow_html=True)
     st.text_input("Lien à copier :", value=APP_URL, label_visibility="collapsed")
+
 st.divider()
 
-# --- 1. DÉCLARATION (EXPANDER PAR DÉFAUT FERMÉ) ---
+# --- 1. DÉCLARATION ---
 with st.expander("🍹 1. Déclarer une consommation", expanded=False):
     if not profils:
-        st.error("⚠️ Cette table est vide. Descendez à la section '5. Gérer l'équipe' pour ajouter des invités !")
+        st.error("⚠️ Cette table est vide. Descendez à la section '6. Gérer l'équipe' pour ajouter des invités !")
     else:
         choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️", "Grignotage (Apéro) 🥨"], horizontal=True)
         
@@ -394,9 +392,8 @@ with st.expander("🍹 1. Déclarer une consommation", expanded=False):
                 envoyer_alerte_whatsapp(Qui, f"{boisson_label} à {affichage_heure}", type_event="Verre")
                 st.success(f"🍹 Verre enregistré pour {Qui} à {affichage_heure}")
                 st.rerun()
-st.divider()
 
-# --- 2. TABLEAU DE BORD INSTANTANÉ (EXPANDER PAR DÉFAUT FERMÉ) ---
+# --- 2. TABLEAU DE BORD INSTANTANÉ ---
 with st.expander("📍 2. Tableau de bord instantané", expanded=False):
     if not profils:
         st.warning("En attente de profils pour calculer les taux.")
@@ -436,12 +433,11 @@ with st.expander("📍 2. Tableau de bord instantané", expanded=False):
         lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
         st.markdown("<br>", unsafe_allow_html=True)
         st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
-st.divider()
     
-# --- V3.1 : HALL OF FAME (EXPANDER PAR DÉFAUT FERMÉ) ---
+# --- 3. HALL OF FAME ---
 record_absolu_groupe = max([s['max_ever'] for s in stats_joueurs.values()]) if stats_joueurs else 0.0
 
-with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded=False):
+with st.expander("🏆 3. Hall of Fame (Records & Statistiques globales)", expanded=False):
     st.markdown(f"<h4 style='color: orange; margin-bottom: 20px;'>🔥 Record absolu de la table : {record_absolu_groupe:.2f} g/L</h4>", unsafe_allow_html=True)
     
     cols_stats = st.columns(len(profils) if profils else 1)
@@ -503,10 +499,9 @@ with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded
         * `☀️ 1j+` : Lendemain de crise maîtrisé, retour au calme (≥ 1 jour).
         * `🔥 En activité` : Actuellement en cours de session (verre bu aujourd'hui).
         """)
-st.divider()
 
-# --- 3. GRAPHIQUE (EXPANDER PAR DÉFAUT FERMÉ) ---
-with st.expander("📊 3. Courbes (Évolution)", expanded=False):
+# --- 4. GRAPHIQUE ---
+with st.expander("📊 4. Courbes (Évolution)", expanded=False):
     if not df_verres.empty and profils:
         choix_vue = st.radio("Sélectionnez la période à afficher :", ["Standard (H-2 à H+6)", "Demi-journée (H-12 à H+12)", "Week-end (H-24 à H+12)"], horizontal=True)
         h_avant, h_apres = (2, 6) if "Standard" in choix_vue else ((12, 12) if "Demi-journée" in choix_vue else (24, 12))
@@ -529,10 +524,9 @@ with st.expander("📊 3. Courbes (Évolution)", expanded=False):
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     else:
         st.info("Aucun verre enregistré sur cette table.")
-st.divider()
 
-# --- 4. HISTORIQUE - VUE TIMELINE (EXPANDER PAR DÉFAUT FERMÉ) ---
-with st.expander("📋 4. Historique de la soirée (Timeline 24h)", expanded=False):
+# --- 5. HISTORIQUE - VUE TIMELINE ---
+with st.expander("📋 5. Historique de la soirée (Timeline 24h)", expanded=False):
     df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_verres.empty else pd.DataFrame()
     if not df_verres_recent.empty: 
         df_verres_recent['icone'] = '🍹'
@@ -580,10 +574,9 @@ with st.expander("📋 4. Historique de la soirée (Timeline 24h)", expanded=Fal
                         st.rerun()
     else:
         st.info("La soirée n'a pas encore commencé... ou tout le monde est à l'eau ! 🚰")
-st.divider()
 
-# --- 5. CONFIGURATION ÉQUIPE (EXPANDER PAR DÉFAUT FERMÉ) ---
-with st.expander(f"⚙️ 5. Gérer l'équipe (Participants de '{groupe_actif}')", expanded=False):
+# --- 6. CONFIGURATION ÉQUIPE ---
+with st.expander(f"⚙️ 6. Gérer l'équipe (Participants de '{groupe_actif}')", expanded=False):
     onglet_Ajusteur, tab_Ajouter, tab_Supprimer = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité", "🗑️ Supprimer un profil"])
     
     with onglet_Ajusteur:
@@ -622,10 +615,9 @@ with st.expander(f"⚙️ 5. Gérer l'équipe (Participants de '{groupe_actif}')
                 supabase.table("profils").delete().eq("id", profils[nom_a_supprimer]["id"]).execute()
                 st.cache_data.clear()
                 st.rerun()
-st.divider()
 
-# --- 6. ADMINISTRATION (EXPANDER PAR DÉFAUT FERMÉ) ---
-with st.expander("🚨 6. Zone de danger (Gestion BDD)", expanded=False):
+# --- 7. ADMINISTRATION ---
+with st.expander("🚨 7. Zone de danger (Gestion BDD)", expanded=False):
     with st.form("form_effacer"):
         mdp = st.text_input("Mot de passe administrateur :", type="password")
         choix_effacer = st.radio("Action souhaitée :", [
@@ -648,11 +640,10 @@ with st.expander("🚨 6. Zone de danger (Gestion BDD)", expanded=False):
                 st.rerun()
             else:
                 st.error("Mot de passe incorrect.")
-st.divider()
 
-# --- 7. FAQ ---
+# --- 8. FAQ ---
 st.markdown("<div id='faq'></div>", unsafe_allow_html=True)
-with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
+with st.expander("❓ 8. FAQ - Guide d'utilisation", expanded=False):
     st.markdown("""
     ### Foire Aux Questions
     
@@ -681,25 +672,23 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
       L'algorithme recalculera instantanément l'intégralité de sa courbe depuis son tout premier verre pour s'adapter rétroactivement à sa nouvelle donnée corporelle.
       
     * **Oups, je me suis trompé de verre ou de personne. Que faire ?**
-      Descendez à la section "4. Historique de la soirée". Vous y verrez toutes les consommations des dernières 24h. Cliquez simplement sur la croix rouge (❌) à côté de l'entrée concernée pour l'effacer définitivement, le graphique se mettra à jour.
+      Descendez à la section "5. Historique de la soirée". Vous y verrez toutes les consommations des dernières 24h. Cliquez simplement sur la croix rouge (❌) à côté de l'entrée concernée pour l'effacer définitivement, le graphique se mettra à jour.
       
     * **Qu'est-ce que le "Max projeté" dans le tableau de bord ?**
       C'est le pic d'alcoolémie à venir, c'est-à-dire le taux le plus élevé que vous atteindrez dans le futur, sans tenir compte des pics passés. Si vous êtes déjà en phase d'élimination (taux qui descend), votre "Max projeté" sera simplement votre taux actuel.
     """)
 
-# --- 8. VERSIONS & MISES À JOUR ---
-with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
+# --- 9. VERSIONS & MISES À JOUR ---
+with st.expander("🏷️ 9. Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V3.3**
+    **Version actuelle : V3.4**
     
-    **Quoi de neuf dans cette mise à jour (V3.3) ?**
-    * 🐛 **Correction du crash de parsing des dates** : Harmonisation robuste des formats de chaînes mixtes (UTC natif et ISO locaux de l'éditeur d'heure) pour éliminer les plantages `ValueError` de Pandas. Nettoyage automatique des lignes corrompues ou incomplètes (`NaT`).
-    * 🐛 **Correction du bug de l'heure** : (depuis V3.2) La sélection manuelle de l'heure ne se réinitialise plus toute seule grâce à la sauvegarde de l'état (session state).
-    * 🔄 **Bouton de mise à jour** : Ajout d'un bouton de rafraîchissement rapide en haut de l'application.
-    * 🗗 **Structure en tiroirs intégrale** : (depuis V3.1)
+    **Quoi de neuf dans cette mise à jour (V3.4) ?**
+    * 🎨 **Nettoyage de l'interface** : Suppression des lignes de division (`st.divider()`) entre chaque tiroir pour un affichage plus compact et fluide, adapté aux mobiles.
+    * 🔢 **Renumérotation des sections** : Le *Hall of Fame* prend désormais sa place officielle en tant que section 3.
     """)
 
-# --- 9. MENTIONS LÉGALES ---
+# --- 10. MENTIONS LÉGALES ---
 st.markdown("""
     <div style='text-align: center; color: #888888; font-size: 11px; margin-top: 30px; padding-bottom: 30px; line-height: 1.5;'>
         ⚠️ <b>AVERTISSEMENT LÉGAL ET DE SANTÉ</b><br><br>
