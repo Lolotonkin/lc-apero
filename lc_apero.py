@@ -104,7 +104,16 @@ def obtenir_toutes_les_tables():
 # ==========================================
 # INTERFACE UTILISATEUR PRINCIPALE
 # ==========================================
-st.title("🍹 Suivi de soirée")
+col_titre, col_maj = st.columns([3, 1])
+with col_titre:
+    st.title("🍹 Suivi de soirée")
+    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 3.2</h5>", unsafe_allow_html=True)
+with col_maj:
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔄 Mettre à jour", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
 st.markdown("<p style='text-align: right;'><a href='#faq' style='color: #FF9800; text-decoration: none;'>❓ Une question ? Consulter la FAQ en bas</a></p>", unsafe_allow_html=True)
 
 # --- GESTION DU CHOIX DE LA TABLE ---
@@ -339,7 +348,13 @@ with st.expander("🍹 1. Déclarer une consommation", expanded=False):
         maintenant_local = pd.Timestamp.now(tz='Europe/Paris')
         
         if oubli:
-            heure_perso = st.time_input("Heure de la consommation :", value=maintenant_local.time())
+            # CORRECTION DU BUG : Utilisation du session_state pour empêcher la réinitialisation
+            if "heure_perso_val" not in st.session_state:
+                st.session_state.heure_perso_val = maintenant_local.time().replace(second=0, microsecond=0)
+            
+            heure_perso = st.time_input("Heure de la consommation :", value=st.session_state.heure_perso_val, key="widget_heure_oubli")
+            st.session_state.heure_perso_val = heure_perso # Fige la sélection de l'utilisateur
+            
             date_conso = maintenant_local.date()
             
             if heure_perso > maintenant_local.time() and maintenant_local.hour < 12:
@@ -349,6 +364,9 @@ with st.expander("🍹 1. Déclarer une consommation", expanded=False):
             moment_actuel = pd.Timestamp(dt_combine).tz_localize('Europe/Paris').isoformat()
             affichage_heure = heure_perso.strftime("%H:%M")
         else:
+            # Réinitialisation propre si la case est décochée
+            if "heure_perso_val" in st.session_state:
+                del st.session_state["heure_perso_val"]
             moment_actuel = maintenant_local.isoformat()
             affichage_heure = maintenant_local.strftime("%H:%M")
 
@@ -671,11 +689,12 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V3.1 (Centralisation totale en Expanders & Légendes)**
+    **Version actuelle : V3.2**
     
-    **Quoi de neuf dans cette mise à jour (V3.1) ?**
-    * 🗗 **Structure en tiroirs intégrale** : Les sections "Déclarer", "Tableau de bord", "Courbes", "Historique", "Gérer l'équipe" et "Zone de danger" sont désormais toutes repliées par défaut pour une interface mobile ultra-propre et sans encombrement.
-    * 📋 **Légende officielle des Badges** : Ajout d'un tableau explicatif complet au sein du Hall of Fame détaillant la hiérarchie des records (Zombie, Pirate...) et les paliers de sobriété.
+    **Quoi de neuf dans cette mise à jour (V3.2) ?**
+    * 🐛 **Correction du bug de l'heure** : La sélection manuelle de l'heure ne se réinitialise plus toute seule grâce à la sauvegarde de l'état (session state).
+    * 🔄 **Bouton de mise à jour** : Ajout d'un bouton de rafraîchissement rapide en haut de l'application.
+    * 🗗 **Structure en tiroirs intégrale** : (depuis V3.1)
     """)
 
 # --- 9. MENTIONS LÉGALES ---
