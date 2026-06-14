@@ -50,7 +50,7 @@ st.markdown("""
     
     /* Expanders & Métriques */
     div[data-testid="stExpander"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; }
-    div[data-testid="stExpander"] summary { color: #FF9800 !important; font-weight: bold !important; }
+    div[data-testid="stExpander"] summary { color: #FF9800 !important; font-weight: bold !important; font-size: 1.15em !important; }
     div[data-testid="stMetricValue"] { color: #FF9800 !important; }
 
     /* Timeline CSS */
@@ -329,158 +329,192 @@ with col_texte:
     st.text_input("Lien à copier :", value=APP_URL, label_visibility="collapsed")
 st.divider()
 
-# --- 1. DÉCLARATION ---
-st.header("🍹 1. Déclarer")
-if not profils:
-    st.error("⚠️ Cette table est vide. Descendez à la section '5. Gérer l'équipe' pour ajouter des invités !")
-else:
-    choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️", "Grignotage (Apéro) 🥨"], horizontal=True)
-    
-    oubli = st.checkbox("🕰️ J'ai oublié de le noter sur le moment (modifier l'heure)")
-    maintenant_local = pd.Timestamp.now(tz='Europe/Paris')
-    
-    if oubli:
-        heure_perso = st.time_input("Heure de la consommation :", value=maintenant_local.time())
-        date_conso = maintenant_local.date()
+# --- 1. DÉCLARATION (EXPANDER PAR DÉFAUT FERMÉ) ---
+with st.expander("🍹 1. Déclarer une consommation", expanded=False):
+    if not profils:
+        st.error("⚠️ Cette table est vide. Descendez à la section '5. Gérer l'équipe' pour ajouter des invités !")
+    else:
+        choix_type = st.radio("Type d'entrée :", ["Un verre de l'amitié 🍺", "Un repas complet 🍽️", "Grignotage (Apéro) 🥨"], horizontal=True)
         
-        if heure_perso > maintenant_local.time() and maintenant_local.hour < 12:
-            date_conso = date_conso - datetime.timedelta(days=1)
+        oubli = st.checkbox("🕰️ J'ai oublié de le noter sur le moment (modifier l'heure)")
+        maintenant_local = pd.Timestamp.now(tz='Europe/Paris')
+        
+        if oubli:
+            heure_perso = st.time_input("Heure de la consommation :", value=maintenant_local.time())
+            date_conso = maintenant_local.date()
             
-        dt_combine = datetime.datetime.combine(date_conso, heure_perso)
-        moment_actuel = pd.Timestamp(dt_combine).tz_localize('Europe/Paris').isoformat()
-        affichage_heure = heure_perso.strftime("%H:%M")
-    else:
-        moment_actuel = maintenant_local.isoformat()
-        affichage_heure = maintenant_local.strftime("%H:%M")
+            if heure_perso > maintenant_local.time() and maintenant_local.hour < 12:
+                date_conso = date_conso - datetime.timedelta(days=1)
+                
+            dt_combine = datetime.datetime.combine(date_conso, heure_perso)
+            moment_actuel = pd.Timestamp(dt_combine).tz_localize('Europe/Paris').isoformat()
+            affichage_heure = heure_perso.strftime("%H:%M")
+        else:
+            moment_actuel = maintenant_local.isoformat()
+            affichage_heure = maintenant_local.strftime("%H:%M")
 
-    if "repas" in choix_type.lower() or "grignotage" in choix_type.lower():
-        type_repas = "Repas" if "repas" in choix_type.lower() else "Grignotage"
-        Qui = st.selectbox("Qui a mangé ?", list(profils.keys()))
-        if st.button("Enregistrer 💾"):
-            supabase.table("meals").insert({"pseudo": Qui, "created_at": moment_actuel, "groupe": groupe_actif, "type": type_repas}).execute()
-            st.cache_data.clear() 
-            envoyer_alerte_whatsapp(Qui, f"{type_repas} à {affichage_heure}", type_event=type_repas)
-            st.success(f"✔️ {type_repas} enregistré pour {Qui} à {affichage_heure}")
-            st.rerun()
-    else:
-        c1, c2, c3 = st.columns(3)
-        with c1: Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
-        with c2: Volume_cl = st.number_input("Volume (cl)", min_value=1, max_value=200, value=25, step=1)
-        with c3: Degre_Alcool = st.number_input("Degré d'alcool (%)", min_value=0.5, max_value=90.0, value=5.0, step=0.5)
+        if "repas" in choix_type.lower() or "grignotage" in choix_type.lower():
+            type_repas = "Repas" if "repas" in choix_type.lower() else "Grignotage"
+            Qui = st.selectbox("Qui a mangé ?", list(profils.keys()))
+            if st.button("Enregistrer 💾"):
+                supabase.table("meals").insert({"pseudo": Qui, "created_at": moment_actuel, "groupe": groupe_actif, "type": type_repas}).execute()
+                st.cache_data.clear() 
+                envoyer_alerte_whatsapp(Qui, f"{type_repas} à {affichage_heure}", type_event=type_repas)
+                st.success(f"✔️ {type_repas} enregistré pour {Qui} à {affichage_heure}")
+                st.rerun()
+        else:
+            c1, c2, c3 = st.columns(3)
+            with c1: Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
+            with c2: Volume_cl = st.number_input("Volume (cl)", min_value=1, max_value=200, value=25, step=1)
+            with c3: Degre_Alcool = st.number_input("Degré d'alcool (%)", min_value=0.5, max_value=90.0, value=5.0, step=0.5)
 
-        if st.button("Enregistrer le verre 💾"):
-            boisson_label = f"{Volume_cl}cl @ {Degre_Alcool}%"
-            alcool_g = float((Volume_cl * 10) * (Degre_Alcool / 100) * 0.8)
-            supabase.table("drinks").insert({"pseudo": Qui, "boisson": boisson_label, "alcool_g": alcool_g, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
-            st.cache_data.clear() 
-            envoyer_alerte_whatsapp(Qui, f"{boisson_label} à {affichage_heure}", type_event="Verre")
-            st.success(f"🍹 Verre enregistré pour {Qui} à {affichage_heure}")
-            st.rerun()
+            if st.button("Enregistrer le verre 💾"):
+                boisson_label = f"{Volume_cl}cl @ {Degre_Alcool}%"
+                alcool_g = float((Volume_cl * 10) * (Degre_Alcool / 100) * 0.8)
+                supabase.table("drinks").insert({"pseudo": Qui, "boisson": boisson_label, "alcool_g": alcool_g, "created_at": moment_actuel, "groupe": groupe_actif}).execute()
+                st.cache_data.clear() 
+                envoyer_alerte_whatsapp(Qui, f"{boisson_label} à {affichage_heure}", type_event="Verre")
+                st.success(f"🍹 Verre enregistré pour {Qui} à {affichage_heure}")
+                st.rerun()
 st.divider()
 
-# --- 2. TABLEAU DE BORD INSTANTANÉ ---
-st.header("📍 2. Tableau de bord")
-if not profils:
-    st.warning("En attente de profils pour calculer les taux.")
-else:
-    cols_dashboard = st.columns(len(profils))
-    texte_whatsapp = f"🪳 *Point AlcooSuivi — Table {groupe_actif}* 🍻\n\n"
+# --- 2. TABLEAU DE BORD INSTANTANÉ (EXPANDER PAR DÉFAUT FERMÉ) ---
+with st.expander("📍 2. Tableau de bord instantané", expanded=False):
+    if not profils:
+        st.warning("En attente de profils pour calculer les taux.")
+    else:
+        cols_dashboard = st.columns(len(profils))
+        texte_whatsapp = f"🪳 *Point AlcooSuivi — Table {groupe_actif}* 🍻\n\n"
 
-    for i, nom in enumerate(profils.keys()):
-        taux_actuel = df_graphique[nom].iloc[idx_maintenant] if nom in df_graphique.columns else 0.0
-        donnees_futures = df_graphique[nom].loc[maintenant_arrondi:] if nom in df_graphique.columns else pd.Series()
-        taux_max_futur = donnees_futures.max() if not donnees_futures.empty else 0.0
+        for i, nom in enumerate(profils.keys()):
+            taux_actuel = df_graphique[nom].iloc[idx_maintenant] if nom in df_graphique.columns else 0.0
+            donnees_futures = df_graphique[nom].loc[maintenant_arrondi:] if nom in df_graphique.columns else pd.Series()
+            taux_max_futur = donnees_futures.max() if not donnees_futures.empty else 0.0
+            
+            if taux_actuel > 0.01 or (not donnees_futures.empty and taux_max_futur > 0.01):
+                temps_sobre = donnees_futures[donnees_futures <= 0.01]
+                retour_zero = temps_sobre.index[0].strftime("%H:%M") if not temps_sobre.empty else "Demain"
+            else:
+                retour_zero = "À jeun"
+                
+            if donnees_futures.empty or taux_max_futur < 0.5:
+                heure_conduite = "Maintenant ✅"
+            else:
+                heure_pic = donnees_futures.idxmax()
+                donnees_apres_pic = donnees_futures.loc[heure_pic:]
+                temps_conduite = donnees_apres_pic[donnees_apres_pic < 0.5]
+                heure_conduite = temps_conduite.index[0].strftime("%H:%M") if not temps_conduite.empty else "Trop tard 🛑"
+
+            with cols_dashboard[i % len(cols_dashboard)]:
+                st.markdown(f"#### {nom}")
+                st.metric(label="Taux Actuel", value=f"{taux_actuel:.2f} g/L")
+                st.markdown(f"**Max projeté :** {taux_max_futur:.2f} g/L")
+                st.markdown(f"**🚗 Conduite (<0.5) :** {heure_conduite}")
+                st.markdown(f"**💧 À jeun (0.0) :** {retour_zero}")
+                
+            texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f}g/L (Max: {taux_max_futur:.2f})\n"
+
+        texte_wa_encode = urllib.parse.quote(texte_whatsapp)
+        lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
+st.divider()
+    
+# --- V3.1 : HALL OF FAME (EXPANDER PAR DÉFAUT FERMÉ + LÉGENDE DES BADGES) ---
+record_absolu_groupe = max([s['max_ever'] for s in stats_joueurs.values()]) if stats_joueurs else 0.0
+
+with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded=False):
+    st.markdown(f"<h4 style='color: orange; margin-bottom: 20px;'>🔥 Record absolu de la table : {record_absolu_groupe:.2f} g/L</h4>", unsafe_allow_html=True)
+    
+    # Affichage des métriques par joueur
+    cols_stats = st.columns(len(profils) if profils else 1)
+    for i, (nom, stats) in enumerate(stats_joueurs.items()):
         
-        if taux_actuel > 0.01 or (not donnees_futures.empty and taux_max_futur > 0.01):
-            temps_sobre = donnees_futures[donnees_futures <= 0.01]
-            retour_zero = temps_sobre.index[0].strftime("%H:%M") if not temps_sobre.empty else "Demain"
-        else:
-            retour_zero = "À jeun"
-            
-        if donnees_futures.empty or taux_max_futur < 0.5:
-            heure_conduite = "Maintenant ✅"
-        else:
-            heure_pic = donnees_futures.idxmax()
-            donnees_apres_pic = donnees_futures.loc[heure_pic:]
-            temps_conduite = donnees_apres_pic[donnees_apres_pic < 0.5]
-            heure_conduite = temps_conduite.index[0].strftime("%H:%M") if not temps_conduite.empty else "Trop tard 🛑"
+        # 1. SYSTÈME DE BADGES ALCOOL (Records)
+        score = stats['max_ever']
+        badge_record = ""
+        if score == record_absolu_groupe and score > 0.01: badge_record += "👑 "
+        if score >= 2.0: badge_record += "🧟‍♂️"
+        elif score >= 1.5: badge_record += "🏴‍☠️"
+        elif score >= 1.0: badge_record += "🥳"
+        elif score >= 0.5: badge_record += "🍺"
+        elif score > 0.0: badge_record += "👼"
+        else: badge_record += "🚰"
 
-        with cols_dashboard[i % len(cols_dashboard)]:
-            st.markdown(f"#### {nom}")
-            st.metric(label="Taux Actuel", value=f"{taux_actuel:.2f} g/L")
-            st.markdown(f"**Max projeté :** {taux_max_futur:.2f} g/L")
-            st.markdown(f"**🚗 Conduite (<0.5) :** {heure_conduite}")
-            st.markdown(f"**💧 À jeun (0.0) :** {retour_zero}")
-            
-        texte_whatsapp += f"• *{nom}* : {taux_actuel:.2f}g/L (Max: {taux_max_futur:.2f})\n"
+        # 2. SYSTÈME DE BADGES SOBRIÉTÉ (Streaks)
+        jours = stats['jours_ecoules']
+        if jours == -1: badge_sobriete = "🕊️ Pureté"
+        elif jours >= 30: badge_sobriete = "🧘 1 mois+"
+        elif jours >= 14: badge_sobriete = "🛡️ 2 sem+"
+        elif jours >= 7: badge_sobriete = "🌱 1 sem+"
+        elif jours >= 5: badge_sobriete = "🐫 5j+"
+        elif jours >= 3: badge_sobriete = "🔋 3j+"
+        elif jours >= 1: badge_sobriete = "☀️ 1j+"
+        else: badge_sobriete = "🔥 En activité"
 
-    texte_wa_encode = urllib.parse.quote(texte_whatsapp)
-    lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
+        with cols_stats[i % len(cols_stats)]:
+            st.markdown(f"**{nom}**")
+            st.markdown(f"**Record absolu :** {score:.2f} g/L {badge_record}")
+            st.markdown(f"**Dernier verre :** {stats['texte_jours']}")
+            st.markdown(f"**Sobriété :** `{badge_sobriete}`")
+            st.markdown(f"**Total bu :** {stats['total_verres']} verres")
+
+    st.markdown("<br><hr style='border: 1px dashed #FF9800;'>", unsafe_allow_html=True)
     
-    # --- V3 : HALL OF FAME ---
-    record_absolu_groupe = max([s['max_ever'] for s in stats_joueurs.values()]) if stats_joueurs else 0.0
+    # Légende des Badges intégrée
+    st.markdown("### 🏷️ Signification des Badges")
+    c_leg_rec, c_leg_sob = st.columns(2)
     
-    with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded=True):
-        st.markdown(f"<h4 style='color: orange; margin-bottom: 20px;'>🔥 Record absolu de la table : {record_absolu_groupe:.2f} g/L</h4>", unsafe_allow_html=True)
-        cols_stats = st.columns(len(profils))
-        for i, (nom, stats) in enumerate(stats_joueurs.items()):
-            
-            # 1. SYSTÈME DE BADGES ALCOOL (Records)
-            score = stats['max_ever']
-            badge_record = ""
-            if score == record_absolu_groupe and score > 0.01: badge_record += "👑 "
-            if score >= 2.0: badge_record += "🧟‍♂️"
-            elif score >= 1.5: badge_record += "🏴‍☠️"
-            elif score >= 1.0: badge_record += "🥳"
-            elif score >= 0.5: badge_record += "🍺"
-            elif score > 0.0: badge_record += "👼"
-            else: badge_record += "🚰"
-
-            # 2. SYSTÈME DE BADGES SOBRIÉTÉ (Streaks)
-            jours = stats['jours_ecoules']
-            if jours == -1: badge_sobriete = "🕊️ Pureté"
-            elif jours >= 30: badge_sobriete = "🧘 1 mois+"
-            elif jours >= 14: badge_sobriete = "🛡️ 2 sem+"
-            elif jours >= 7: badge_sobriete = "🌱 1 sem+"
-            elif jours >= 5: badge_sobriete = "🐫 5j+"
-            elif jours >= 3: badge_sobriete = "🔋 3j+"
-            elif jours >= 1: badge_sobriete = "☀️ 1j+"
-            else: badge_sobriete = "🔥 En activité"
-
-            with cols_stats[i % len(cols_stats)]:
-                st.markdown(f"**{nom}**")
-                st.markdown(f"**Record absolu :** {score:.2f} g/L {badge_record}")
-                st.markdown(f"**Dernier verre :** {stats['texte_jours']}")
-                st.markdown(f"**Sobriété :** `{badge_sobriete}`")
-                st.markdown(f"**Total bu :** {stats['total_verres']} verres")
+    with c_leg_rec:
+        st.markdown("**💥 Badges de Record (Taux max atteint)**")
+        st.markdown("""
+        * 👑 **Couronne** : Recordman absolu actuel de la table active.
+        * 🧟‍♂️ **Zombie** : Taux critique exceptionnel (≥ 2.0 g/L).
+        * 🏴‍☠️ **Pirate** : Capitaine de soirée très solide (≥ 1.5 g/L).
+        * 🥳 **Fêtard** : En pleine célébration joyeuse (≥ 1.0 g/L).
+        * 🍺 **Amateur** : Consommation classique et modérée (≥ 0.5 g/L).
+        * 👼 **Ange** : Rester très léger, sous les limites (> 0.0 g/L).
+        * 🚰 **Chameau** : Strictement à l'eau pure ou softs (0.0 g/L).
+        """)
+        
+    with c_leg_sob:
+        st.markdown("**🧘 Badges de Sobriété (Temps depuis le dernier verre)**")
+        st.markdown("""
+        * `🕊️ Pureté` : Profil historique totalement vierge (aucun verre enregistré).
+        * `🧘 1 mois+` : Ascète absolu, abstinence totale depuis plus de 30 jours.
+        * `🛡️ 2 sem+` : Protection immunitaire et détox engagée (≥ 14 jours).
+        * `🌱 1 sem+` : Retour au vert réussi, corps purifié (≥ 7 jours).
+        * `🐫 5j+` : Traversée du désert confirmée avec brio (≥ 5 jours).
+        * `🔋 3j+` : Batterie rechargée, foie au repos complet (≥ 3 jours).
+        * `☀️ 1j+` : Lendemain de crise maîtrisé, retour au calme (≥ 1 jour).
+        * `🔥 En activité` : Actuellement en cours de session (verre bu aujourd'hui).
+        """)
 st.divider()
 
-# --- 3. GRAPHIQUE ---
-st.header("📊 3. Courbes (Évolution)")
-if not df_verres.empty and profils:
-    choix_vue = st.radio("Sélectionnez la période à afficher :", ["Standard (H-2 à H+6)", "Demi-journée (H-12 à H+12)", "Week-end (H-24 à H+12)"], horizontal=True)
-    h_avant, h_apres = (2, 6) if "Standard" in choix_vue else ((12, 12) if "Demi-journée" in choix_vue else (24, 12))
+# --- 3. GRAPHIQUE (EXPANDER PAR DÉFAUT FERMÉ) ---
+with st.expander("📊 3. Courbes (Évolution)", expanded=False):
+    if not df_verres.empty and profils:
+        choix_vue = st.radio("Sélectionnez la période à afficher :", ["Standard (H-2 à H+6)", "Demi-journée (H-12 à H+12)", "Week-end (H-24 à H+12)"], horizontal=True)
+        h_avant, h_apres = (2, 6) if "Standard" in choix_vue else ((12, 12) if "Demi-journée" in choix_vue else (24, 12))
 
-    fig = go.Figure()
-    couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c']
-    for i, nom in enumerate(profils.keys()):
-        if nom in df_graphique.columns:
-            fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
+        fig = go.Figure()
+        couleurs = ['#3498db', '#e74c3c', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c']
+        for i, nom in enumerate(profils.keys()):
+            if nom in df_graphique.columns:
+                fig.add_trace(go.Scatter(x=df_graphique.index, y=df_graphique[nom], mode='lines', name=nom, line=dict(width=3, color=couleurs[i % len(couleurs)])))
 
-    fig.add_vline(x=maintenant_arrondi, line_width=2, line_dash="dash", line_color="orange")
-    fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L", annotation_position="top right")
+        fig.add_vline(x=maintenant_arrondi, line_width=2, line_dash="dash", line_color="orange")
+        fig.add_hline(y=0.5, line_width=1, line_dash="dot", line_color="red", annotation_text="0.5 g/L", annotation_position="top right")
 
-    vue_debut = (maintenant_arrondi - pd.Timedelta(hours=h_avant)).strftime('%Y-%m-%d %H:%M:%S')
-    vue_fin = (maintenant_arrondi + pd.Timedelta(hours=h_apres)).strftime('%Y-%m-%d %H:%M:%S')
+        vue_debut = (maintenant_arrondi - pd.Timedelta(hours=h_avant)).strftime('%Y-%m-%d %H:%M:%S')
+        vue_fin = (maintenant_arrondi + pd.Timedelta(hours=h_apres)).strftime('%Y-%m-%d %H:%M:%S')
 
-    fig.update_xaxes(fixedrange=True, title="Heure", range=[vue_debut, vue_fin], autorange=False)
-    fig.update_yaxes(fixedrange=True, title="Taux (g/L)", rangemode="tozero")
-    fig.update_layout(template="plotly_dark", hovermode="x unified", margin=dict(l=20, r=20, t=30, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-else:
-    st.info("Aucun verre enregistré sur cette table.")
+        fig.update_xaxes(fixedrange=True, title="Heure", range=[vue_debut, vue_fin], autorange=False)
+        fig.update_yaxes(fixedrange=True, title="Taux (g/L)", rangemode="tozero")
+        fig.update_layout(template="plotly_dark", hovermode="x unified", margin=dict(l=20, r=20, t=30, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    else:
+        st.info("Aucun verre enregistré sur cette table.")
 st.divider()
 
 # --- 4. HISTORIQUE - VUE TIMELINE ---
@@ -646,13 +680,12 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V3.0 (Système de Badges dynamique)**
+    **Version actuelle : V3.1 (Centralisation en Expanders & Légendes)**
     
-    **Quoi de neuf dans cette mise à jour (V3.0) ?**
-    * 👑 **Le Roi de la soirée :** Une couronne se place dynamiquement sur le joueur ayant le plus gros record.
-    * 🏅 **Badges de record :** Légende 🧟‍♂️, Pirate 🏴‍☠️, Fêtard 🥳...
-    * 🧘 **Streaks de Sobriété :** Suivi dynamique des jours consécutifs sans boire (perd le badge dès qu'un verre est ajouté !).
-    * 🕰️ **Correction du bug "Hier" :** L'historique calcule maintenant les jours calendaires au lieu de tranches strictes de 24h.
+    **Quoi de neuf dans cette mise à jour (V3.1) ?**
+    * 🗗 **Structure en tiroirs (Expanders)** : Les sections "Déclarer", "Tableau de bord" et "Courbes" sont désormais repliées par défaut pour une navigation mobile ultra-propre.
+    * 📋 **Légende officielle des Badges** : Ajout d'un tableau explicatif complet au sein du Hall of Fame détaillant la hiérarchie des records (Zombie, Pirate...) et les paliers de sobriété.
+    * 🛠️ Nettoyage visuel des séparateurs pour éviter l'effet de surcharge à l'écran.
     """)
 
 # --- 9. MENTIONS LÉGALES ---
