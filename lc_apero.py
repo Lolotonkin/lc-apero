@@ -107,7 +107,7 @@ def obtenir_toutes_les_tables():
 col_titre, col_maj = st.columns([3, 1])
 with col_titre:
     st.title("🍹 Suivi de soirée")
-    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 3.2</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 3.3</h5>", unsafe_allow_html=True)
 with col_maj:
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🔄 Mettre à jour", use_container_width=True):
@@ -211,16 +211,19 @@ axe_temps = pd.date_range(start=debut_calcul, end=fin_calcul, freq='5min', tz='E
 PENTE_ELIMINATION_5MIN = 0.15 * (5 / 60)
 
 def clean_tz(series):
-    dt = pd.to_datetime(series)
-    if dt.dt.tz is None: dt = dt.dt.tz_localize('UTC')
+    # Sécurité anti-crash : encaisse les variations de structure de chaînes textuelles et d'anciennes dates UTC
+    dt = pd.to_datetime(series, errors='coerce', format='mixed', utc=True)
     return dt.dt.tz_convert('Europe/Paris')
 
 df_verres = pd.DataFrame(boissons_nuageuses) if boissons_nuageuses else pd.DataFrame(columns=['id', 'pseudo', 'boisson', 'alcool_g', 'created_at', 'groupe'])
-if not df_verres.empty: df_verres['created_at'] = clean_tz(df_verres['created_at'])
+if not df_verres.empty: 
+    df_verres['created_at'] = clean_tz(df_verres['created_at'])
+    df_verres = df_verres.dropna(subset=['created_at'])
 
 df_repas = pd.DataFrame(repas_nuage) if repas_nuage else pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'groupe', 'type'])
 if not df_repas.empty: 
     df_repas['created_at'] = clean_tz(df_repas['created_at'])
+    df_repas = df_repas.dropna(subset=['created_at'])
     if 'type' not in df_repas.columns:
         df_repas['type'] = 'Repas'
 
@@ -348,12 +351,11 @@ with st.expander("🍹 1. Déclarer une consommation", expanded=False):
         maintenant_local = pd.Timestamp.now(tz='Europe/Paris')
         
         if oubli:
-            # CORRECTION DU BUG : Utilisation du session_state pour empêcher la réinitialisation
             if "heure_perso_val" not in st.session_state:
                 st.session_state.heure_perso_val = maintenant_local.time().replace(second=0, microsecond=0)
             
             heure_perso = st.time_input("Heure de la consommation :", value=st.session_state.heure_perso_val, key="widget_heure_oubli")
-            st.session_state.heure_perso_val = heure_perso # Fige la sélection de l'utilisateur
+            st.session_state.heure_perso_val = heure_perso 
             
             date_conso = maintenant_local.date()
             
@@ -364,7 +366,6 @@ with st.expander("🍹 1. Déclarer une consommation", expanded=False):
             moment_actuel = pd.Timestamp(dt_combine).tz_localize('Europe/Paris').isoformat()
             affichage_heure = heure_perso.strftime("%H:%M")
         else:
-            # Réinitialisation propre si la case est décochée
             if "heure_perso_val" in st.session_state:
                 del st.session_state["heure_perso_val"]
             moment_actuel = maintenant_local.isoformat()
@@ -668,7 +669,7 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
       L'application insère le verre à l'heure exacte demandée. L'historique (Timeline) se met à jour chronologiquement en plaçant le verre à sa juste place dans le passé, et l'algorithme recalcule instantanément toute l'évolution des taux depuis cette heure-là.
       
     * **Comment l'application gère-t-elle le passage de minuit pour les verres oubliés ?**
-      Si vous ajoutez un verre à 01h30 du matin et indiquez "23h45" dans l'heure oubliée, le système comprend automatiquement (si vous êtes le matin avant midi) qu'il s'agit de 23h45 de la veille au soir, évitant ainsi de placer le verre dans le futur.
+      Si vous ajoutez un verre à 01h30 du matin et indiquez "23h45" dans l'heure oubliée, le systeme comprend automatiquement (si vous êtes le matin avant midi) qu'il s'agit de 23h45 de la veille au soir, évitant ainsi de placer le verre dans le futur.
       
     * **Pourquoi l'application me demande-t-elle de déclarer un repas ou un grignotage ?**
       Manger ne fait pas baisser l'alcoolémie, mais cela ralentit considérablement l'absorption de l'alcool dans le sang. L'algorithme lissera la courbe en conséquence. Un repas complet repousse le pic d'absorption sur une période d'environ 3 heures, tandis qu'un grignotage d'apéro le repousse sur environ 1 heure et demie.
@@ -689,10 +690,11 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V3.2**
+    **Version actuelle : V3.3**
     
-    **Quoi de neuf dans cette mise à jour (V3.2) ?**
-    * 🐛 **Correction du bug de l'heure** : La sélection manuelle de l'heure ne se réinitialise plus toute seule grâce à la sauvegarde de l'état (session state).
+    **Quoi de neuf dans cette mise à jour (V3.3) ?**
+    * 🐛 **Correction du crash de parsing des dates** : Harmonisation robuste des formats de chaînes mixtes (UTC natif et ISO locaux de l'éditeur d'heure) pour éliminer les plantages `ValueError` de Pandas. Nettoyage automatique des lignes corrompues ou incomplètes (`NaT`).
+    * 🐛 **Correction du bug de l'heure** : (depuis V3.2) La sélection manuelle de l'heure ne se réinitialise plus toute seule grâce à la sauvegarde de l'état (session state).
     * 🔄 **Bouton de mise à jour** : Ajout d'un bouton de rafraîchissement rapide en haut de l'application.
     * 🗗 **Structure en tiroirs intégrale** : (depuis V3.1)
     """)
