@@ -299,7 +299,6 @@ for nom, info in profils.items():
     
     if not verres_perso.empty:
         dernier_verre = verres_perso['created_at'].max()
-        # CORRECTION : Calcul sur les jours calendaires
         jours_ecoules = (maintenant.date() - dernier_verre.date()).days
         
         if jours_ecoules == 0: texte_jours = "Aujourd'hui 🍻"
@@ -364,7 +363,7 @@ with st.expander("🍹 1. Déclarer une consommation", expanded=False):
                 st.rerun()
         else:
             c1, c2, c3 = st.columns(3)
-            with c1: Qui = st.selectbox("Qui consomme ?", list(profils.keys()))
+            with c1: Qui = st.selectbox("Qui consumes ?", list(profils.keys()))
             with c2: Volume_cl = st.number_input("Volume (cl)", min_value=1, max_value=200, value=25, step=1)
             with c3: Degre_Alcool = st.number_input("Degré d'alcool (%)", min_value=0.5, max_value=90.0, value=5.0, step=0.5)
 
@@ -420,17 +419,15 @@ with st.expander("📍 2. Tableau de bord instantané", expanded=False):
         st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
 st.divider()
     
-# --- V3.1 : HALL OF FAME (EXPANDER PAR DÉFAUT FERMÉ + LÉGENDE DES BADGES) ---
+# --- V3.1 : HALL OF FAME (EXPANDER PAR DÉFAUT FERMÉ) ---
 record_absolu_groupe = max([s['max_ever'] for s in stats_joueurs.values()]) if stats_joueurs else 0.0
 
 with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded=False):
     st.markdown(f"<h4 style='color: orange; margin-bottom: 20px;'>🔥 Record absolu de la table : {record_absolu_groupe:.2f} g/L</h4>", unsafe_allow_html=True)
     
-    # Affichage des métriques par joueur
     cols_stats = st.columns(len(profils) if profils else 1)
     for i, (nom, stats) in enumerate(stats_joueurs.items()):
         
-        # 1. SYSTÈME DE BADGES ALCOOL (Records)
         score = stats['max_ever']
         badge_record = ""
         if score == record_absolu_groupe and score > 0.01: badge_record += "👑 "
@@ -441,7 +438,6 @@ with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded
         elif score > 0.0: badge_record += "👼"
         else: badge_record += "🚰"
 
-        # 2. SYSTÈME DE BADGES SOBRIÉTÉ (Streaks)
         jours = stats['jours_ecoules']
         if jours == -1: badge_sobriete = "🕊️ Pureté"
         elif jours >= 30: badge_sobriete = "🧘 1 mois+"
@@ -461,7 +457,6 @@ with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded
 
     st.markdown("<br><hr style='border: 1px dashed #FF9800;'>", unsafe_allow_html=True)
     
-    # Légende des Badges intégrée
     st.markdown("### 🏷️ Signification des Badges")
     c_leg_rec, c_leg_sob = st.columns(2)
     
@@ -517,10 +512,8 @@ with st.expander("📊 3. Courbes (Évolution)", expanded=False):
         st.info("Aucun verre enregistré sur cette table.")
 st.divider()
 
-# --- 4. HISTORIQUE - VUE TIMELINE ---
-st.header("📋 4. Historique de la soirée")
-
-with st.expander("👀 Afficher la Timeline (24h)", expanded=True):
+# --- 4. HISTORIQUE - VUE TIMELINE (EXPANDER PAR DÉFAUT FERMÉ) ---
+with st.expander("📋 4. Historique de la soirée (Timeline 24h)", expanded=False):
     df_verres_recent = df_verres[df_verres['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_verres.empty else pd.DataFrame()
     if not df_verres_recent.empty: 
         df_verres_recent['icone'] = '🍹'
@@ -570,9 +563,8 @@ with st.expander("👀 Afficher la Timeline (24h)", expanded=True):
         st.info("La soirée n'a pas encore commencé... ou tout le monde est à l'eau ! 🚰")
 st.divider()
 
-# --- 5. CONFIGURATION ÉQUIPE ---
-st.header("⚙️ 5. Gérer l'équipe")
-with st.expander(f"Modifier les participants de '{groupe_actif}'", expanded=not profils):
+# --- 5. CONFIGURATION ÉQUIPE (EXPANDER PAR DÉFAUT FERMÉ) ---
+with st.expander(f"⚙️ 5. Gérer l'équipe (Participants de '{groupe_actif}')", expanded=False):
     onglet_Ajusteur, tab_Ajouter, tab_Supprimer = st.tabs(["✏️ Ajuster les poids", "➕ Ajouter un invité", "🗑️ Supprimer un profil"])
     
     with onglet_Ajusteur:
@@ -613,9 +605,8 @@ with st.expander(f"Modifier les participants de '{groupe_actif}'", expanded=not 
                 st.rerun()
 st.divider()
 
-# --- 6. ADMINISTRATION ---
-st.header("🚨 6. Zone de danger")
-with st.expander("Gérer la base de données", expanded=False):
+# --- 6. ADMINISTRATION (EXPANDER PAR DÉFAUT FERMÉ) ---
+with st.expander("🚨 6. Zone de danger (Gestion BDD)", expanded=False):
     with st.form("form_effacer"):
         mdp = st.text_input("Mot de passe administrateur :", type="password")
         choix_effacer = st.radio("Action souhaitée :", [
@@ -680,12 +671,11 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V3.1 (Centralisation en Expanders & Légendes)**
+    **Version actuelle : V3.1 (Centralisation totale en Expanders & Légendes)**
     
     **Quoi de neuf dans cette mise à jour (V3.1) ?**
-    * 🗗 **Structure en tiroirs (Expanders)** : Les sections "Déclarer", "Tableau de bord" et "Courbes" sont désormais repliées par défaut pour une navigation mobile ultra-propre.
+    * 🗗 **Structure en tiroirs intégrale** : Les sections "Déclarer", "Tableau de bord", "Courbes", "Historique", "Gérer l'équipe" et "Zone de danger" sont désormais toutes repliées par défaut pour une interface mobile ultra-propre et sans encombrement.
     * 📋 **Légende officielle des Badges** : Ajout d'un tableau explicatif complet au sein du Hall of Fame détaillant la hiérarchie des records (Zombie, Pirate...) et les paliers de sobriété.
-    * 🛠️ Nettoyage visuel des séparateurs pour éviter l'effet de surcharge à l'écran.
     """)
 
 # --- 9. MENTIONS LÉGALES ---
