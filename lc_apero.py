@@ -218,6 +218,9 @@ if not df_repas.empty:
 df_graphique = pd.DataFrame(index=axe_temps)
 idx_maintenant = df_graphique.index.get_indexer([maintenant_arrondi], method='nearest')[0]
 
+# Dictionnaire pour stocker les statistiques globales
+stats_joueurs = {}
+
 for nom, info in profils.items():
     poids = info["poids"]
     coef_diffusion = 0.7 if info["sexe"] == "Homme" else 0.6
@@ -290,6 +293,24 @@ for nom, info in profils.items():
         taux_liste.append(taux_dict.get(t, 0.0))
         
     df_graphique[nom] = taux_liste
+    
+    # EXTRACTION DES STATISTIQUES GLOBALES
+    max_historique = max(taux_dict.values()) if taux_dict else 0.0
+    
+    if not verres_perso.empty:
+        dernier_verre = verres_perso['created_at'].max()
+        delta = maintenant - dernier_verre
+        if delta.days == 0: texte_jours = "Aujourd'hui 🍻"
+        elif delta.days == 1: texte_jours = "1 jour 💧"
+        else: texte_jours = f"{delta.days} jours 💧"
+    else:
+        texte_jours = "Jamais bu 😇"
+        
+    stats_joueurs[nom] = {
+        "max_ever": max_historique,
+        "texte_jours": texte_jours,
+        "total_verres": len(verres_perso)
+    }
 
 # --- 0. ACCÈS ---
 APP_URL = "https://lc-apero-eqdne2pvte4wak5sawi8kf.streamlit.app"
@@ -363,7 +384,6 @@ else:
 
     for i, nom in enumerate(profils.keys()):
         taux_actuel = df_graphique[nom].iloc[idx_maintenant] if nom in df_graphique.columns else 0.0
-        
         donnees_futures = df_graphique[nom].loc[maintenant_arrondi:] if nom in df_graphique.columns else pd.Series()
         taux_max_futur = donnees_futures.max() if not donnees_futures.empty else 0.0
         
@@ -394,6 +414,17 @@ else:
     lien_partage_whatsapp = f"https://api.whatsapp.com/send?text={texte_wa_encode}"
     st.markdown("<br>", unsafe_allow_html=True)
     st.link_button("📲 Partager le bilan sur WhatsApp", lien_partage_whatsapp)
+    
+    # --- NOUVEAU : HALL OF FAME ---
+    with st.expander("🏆 Hall of Fame (Records & Statistiques globales)", expanded=False):
+        st.markdown("<h4 style='color: orange; margin-bottom: 20px;'>Médailles & Sobriété</h4>", unsafe_allow_html=True)
+        cols_stats = st.columns(len(profils))
+        for i, (nom, stats) in enumerate(stats_joueurs.items()):
+            with cols_stats[i % len(cols_stats)]:
+                st.markdown(f"**{nom}**")
+                st.markdown(f"**Record absolu :** {stats['max_ever']:.2f} g/L 🥇")
+                st.markdown(f"**Dernier verre :** {stats['texte_jours']}")
+                st.markdown(f"**Total bu :** {stats['total_verres']} verres")
 st.divider()
 
 # --- 3. GRAPHIQUE ---
@@ -443,7 +474,6 @@ with st.expander("👀 Afficher la Timeline (24h)", expanded=True):
     df_timeline = pd.concat([df_verres_recent[['id', 'pseudo', 'created_at', 'icone', 'details']], df_repas_recent[['id', 'pseudo', 'created_at', 'icone', 'details']]])
 
     if not df_timeline.empty:
-        # Tri chronologique inverse (le plus récent ou modifié en haut)
         df_timeline = df_timeline.sort_values(by='created_at', ascending=False)
         
         for _, row in df_timeline.iterrows():
@@ -586,12 +616,13 @@ with st.expander("❓ FAQ - Guide d'utilisation", expanded=False):
 # --- 8. VERSIONS & MISES À JOUR ---
 with st.expander("🏷️ Version & Notes de mise à jour", expanded=False):
     st.markdown("""
-    **Version actuelle : V2.2 (Mis à jour)**
+    **Version actuelle : V2.3 (Mise à jour majeure des Stats)**
     
-    **Quoi de neuf dans cette mise à jour ?**
+    **Quoi de neuf dans cette mise à jour (V2.3) ?**
+    * 🏆 **Hall of Fame :** Ajout d'un encart "Statistiques globales" (Record du taux le plus haut jamais atteint, nombre de jours sans boire, total des verres ingérés).
     * 🕰️ **Saisie rétroactive intelligente :** Ajout de la case à cocher "J'ai oublié" permettant de forcer l'heure d'un verre ou d'un repas.
     * 📋 **Reclassement automatique dans la Timeline :** Les consommations passées oubliées s'insèrent au bon endroit chronologique dans l'historique et recalculent proprement la courbe.
-    * 🔮 **Correction du Max Projeté :** L'indicateur "Max projeté" ne prend désormais en compte que l'avenir.
+    * 🔮 **Correction du Max Projeté :** L'indicateur principal du tableau de bord ne prend désormais en compte que l'avenir.
     """)
 
 # --- 9. MENTIONS LÉGALES ---
