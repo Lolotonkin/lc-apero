@@ -50,7 +50,25 @@ st.markdown("""
     
     /* Expanders & Métriques */
     div[data-testid="stExpander"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; margin-bottom: 5px; }
-    div[data-testid="stExpander"] summary { color: #FF9800 !important; font-weight: bold !important; font-size: 1.15em !important; }
+    
+    /* Correction de la visibilité des titres d'expanders dans tous les états */
+    div[data-testid="stExpander"] summary, 
+    div[data-testid="stExpander"] summary span,
+    div[data-testid="stExpander"] summary p,
+    div[data-testid="stExpander"] summary:hover,
+    div[data-testid="stExpander"] summary:hover span,
+    div[data-testid="stExpander"] summary:hover p,
+    div[data-testid="stExpander"] summary:focus,
+    div[data-testid="stExpander"] summary:focus span,
+    div[data-testid="stExpander"] summary:focus p,
+    div[data-testid="stExpander"] summary:active,
+    div[data-testid="stExpander"] summary:active span,
+    div[data-testid="stExpander"] summary:active p { 
+        color: #FF9800 !important; 
+        font-weight: bold !important; 
+        font-size: 1.15em !important; 
+    }
+    
     div[data-testid="stMetricValue"] { color: #FF9800 !important; }
 
     /* Timeline CSS */
@@ -167,8 +185,6 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, type_event="Verre"):
         texte = f"🍹 *Suivi de soirée ({groupe_actif})* : {pseudo} a pris : {detail_conso} 📈"
     try: requests.post(URL_WEBHOOK_WHATSAPP, json={"message": texte, "pseudo": pseudo})
     except: pass
-
-st.divider()
 
 # --- CHARGEMENT DES DONNÉES ---
 @st.cache_data(ttl=2)
@@ -335,8 +351,6 @@ with col_qr:
 with col_texte:
     st.markdown("<h3 style='color: orange; margin-top: 0px;'>🔗 Partager l'application</h3>", unsafe_allow_html=True)
     st.text_input("Lien à copier :", value=APP_URL, label_visibility="collapsed")
-
-st.divider()
 
 # --- 1. DÉCLARATION ---
 with st.expander("🍹 1. Déclarer une consommation", expanded=False):
@@ -686,6 +700,7 @@ with st.expander("🏷️ 9. Version & Notes de mise à jour", expanded=False):
     **Quoi de neuf dans cette mise à jour (V3.4) ?**
     * 🎨 **Nettoyage de l'interface** : Suppression des lignes de division (`st.divider()`) entre chaque tiroir pour un affichage plus compact et fluide, adapté aux mobiles.
     * 🔢 **Renumérotation des sections** : Le *Hall of Fame* prend désormais sa place officielle en tant que section 3.
+    * 🛠️ **Correctif visuel** : Correction de la visibilité des titres d'expanders qui pouvaient devenir invisibles dans certains états.
     """)
 
 # --- 10. MENTIONS LÉGALES ---
