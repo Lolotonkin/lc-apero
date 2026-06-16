@@ -434,21 +434,22 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 hoverinfo="text"
             ))
 
-        # Position de la table d'ajout virtuelle verte
-        x_add = (num_tables % 2) * 3.5
-        y_add = -(num_tables // 2) * 3.0
-        
-        fig_salle.add_trace(go.Scatter(
-            x=[x_add],
-            y=[y_add],
-            mode="markers+text",
-            marker=dict(size=65, color="#000000", line=dict(width=2, color="#2ecc71", dash="dash")),
-            text=[TRAD[st.session_state.lang]["creer_table"]],
-            textposition="bottom center",
-            textfont=dict(color="#2ecc71", size=12, family="Arial"),
-            customdata=["CREER_TABLE"],
-            hoverinfo="text"
-        ))
+        # Position de la table d'ajout virtuelle verte (Seulement si moins de 10 tables)
+        if num_tables < 10:
+            x_add = (num_tables % 2) * 3.5
+            y_add = -(num_tables // 2) * 3.0
+            
+            fig_salle.add_trace(go.Scatter(
+                x=[x_add],
+                y=[y_add],
+                mode="markers+text",
+                marker=dict(size=65, color="#000000", line=dict(width=2, color="#2ecc71", dash="dash")),
+                text=[TRAD[st.session_state.lang]["creer_table"]],
+                textposition="bottom center",
+                textfont=dict(color="#2ecc71", size=12, family="Arial"),
+                customdata=["CREER_TABLE"],
+                hoverinfo="text"
+            ))
 
         max_rows = (num_tables // 2) + 1
         fig_salle.update_layout(
@@ -479,17 +480,20 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
         # Bloc d'insertion si déclenchement de la création
         if st.session_state.get("afficher_creation_table", False):
             st.markdown("---")
-            col_nom, col_btn = st.columns([3, 1])
-            with col_nom:
-                nom_nouvelle_table = st.text_input("Nom :", label_visibility="collapsed", placeholder=TRAD[st.session_state.lang]["nom_table_placeholder"])
-            with col_btn:
-                if st.button(TRAD[st.session_state.lang]["btn_rejoindre"], use_container_width=True):
-                    if nom_nouvelle_table.strip():
-                        st.session_state.groupe_selectionne = nom_nouvelle_table.strip()
-                        st.session_state.salle_bar_active = False
-                        st.session_state.afficher_creation_table = False
-                        st.cache_data.clear()
-                        st.rerun()
+            if len(tables_existantes) >= 10:
+                st.error("🛑 Limite de 10 tables atteinte. Impossible de créer une nouvelle table.")
+            else:
+                col_nom, col_btn = st.columns([3, 1])
+                with col_nom:
+                    nom_nouvelle_table = st.text_input("Nom :", label_visibility="collapsed", placeholder=TRAD[st.session_state.lang]["nom_table_placeholder"])
+                with col_btn:
+                    if st.button(TRAD[st.session_state.lang]["btn_rejoindre"], use_container_width=True):
+                        if nom_nouvelle_table.strip():
+                            st.session_state.groupe_selectionne = nom_nouvelle_table.strip()
+                            st.session_state.salle_bar_active = False
+                            st.session_state.afficher_creation_table = False
+                            st.cache_data.clear()
+                            st.rerun()
 
     # CAS B : VUE DE LA TABLE ACTIVE AVEC SES CHAISES, COULEURS ET BADGES
     else:
