@@ -489,7 +489,21 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 with col_btn:
                     if st.button(TRAD[st.session_state.lang]["btn_rejoindre"], use_container_width=True):
                         if nom_nouvelle_table.strip():
-                            st.session_state.groupe_selectionne = nom_nouvelle_table.strip()
+                            nom_t = nom_nouvelle_table.strip()
+                            
+                            # --- CORRECTIF : Forcer la création de la table côté base de données ---
+                            try:
+                                supabase.table("profils").insert({
+                                    "pseudo": "Hôte", 
+                                    "sexe": "Homme", 
+                                    "poids": 75, 
+                                    "groupe": nom_t
+                                }).execute()
+                            except:
+                                pass
+                            # -----------------------------------------------------------------------
+                            
+                            st.session_state.groupe_selectionne = nom_t
                             st.session_state.salle_bar_active = False
                             st.session_state.afficher_creation_table = False
                             st.cache_data.clear()
