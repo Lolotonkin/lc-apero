@@ -406,53 +406,79 @@ record_absolu_groupe = max([s['max_ever'] for s in stats_joueurs.values()]) if s
 # --- 1. CONFIGURATION DE LA SALLE DE BAR ET TABLE ACTIVE ---
 with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
     
-    # CAS A : VUE SALLE DE BAR GLOBALE
+    # CAS A : VUE SALLE DE BAR GLOBALE INTERACTIVE (SANS MENUS DÉROULANTS REDONDANTS)
     if st.session_state.salle_bar_active:
         st.markdown(f"### 🚪 Grand Salon des Tables")
         
-        # Dessin Plotly de la salle de bar avec toutes ses tables
+        # Dessin Plotly adaptatif
         fig_salle = go.Figure()
         
-        # Génération de coordonnées pour les cercles représentant les tables
         num_tables = len(tables_existantes)
         for idx, t_name in enumerate(tables_existantes):
-            x_pos = (idx % 3) * 2.5
-            y_pos = -(idx // 3) * 2.5
+            # Configuration en 2 colonnes larges pour donner de l'espace aux longs labels textuels
+            x_pos = (idx % 2) * 3.5
+            y_pos = -(idx // 2) * 3.0
             
-            # Couleur distinctive pour la table active courante
-            color_table = "#FF9800" if t_name == groupe_actif else "#333333"
+            color_table = "#FF9800" if t_name == groupe_actif else "#555555"
             
-            # Cercle de la table
-            fig_salle.add_shape(type="circle", x0=x_pos-0.8, y0=y_pos-0.8, x1=x_pos+0.8, y1=y_pos+0.8, fillcolor="#1A1A1A", line_color=color_table, line_width=3)
-            # Label de la table
-            fig_salle.add_annotation(x=x_pos, y=y_pos, text=f"📊 {t_name}", showarrow=False, font=dict(color="#FFFFFF", size=11, family="Arial"))
+            # Injection de la table en tant que marqueur cliquable
+            fig_salle.add_trace(go.Scatter(
+                x=[x_pos],
+                y=[y_pos],
+                mode="markers+text",
+                marker=dict(size=65, color="#1A1A1A", line=dict(width=3, color=color_table)),
+                text=[f"📊 {t_name}"],
+                textposition="bottom center",
+                textfont=dict(color="#FFFFFF", size=12, family="Arial"),
+                customdata=[t_name],
+                hoverinfo="text"
+            ))
 
-        # Position de la table d'ajout
-        x_add = (num_tables % 3) * 2.5
-        y_add = -(num_tables // 3) * 2.5
-        fig_salle.add_shape(type="circle", x0=x_add-0.8, y0=y_add-0.8, x1=x_add+0.8, y1=y_add+0.8, fillcolor="#000000", line_color="#2ecc71", line_dash="dash", line_width=2)
-        fig_salle.add_annotation(x=x_add, y=y_add, text=TRAD[st.session_state.lang]["creer_table"], showarrow=False, font=dict(color="#2ecc71", size=11, family="Arial"))
+        # Position de la table d'ajout virtuelle verte
+        x_add = (num_tables % 2) * 3.5
+        y_add = -(num_tables // 2) * 3.0
+        
+        fig_salle.add_trace(go.Scatter(
+            x=[x_add],
+            y=[y_add],
+            mode="markers+text",
+            marker=dict(size=65, color="#000000", line=dict(width=2, color="#2ecc71", dash="dash")),
+            text=[TRAD[st.session_state.lang]["creer_table"]],
+            textposition="bottom center",
+            textfont=dict(color="#2ecc71", size=12, family="Arial"),
+            customdata=["CREER_TABLE"],
+            hoverinfo="text"
+        ))
 
+        max_rows = (num_tables // 2) + 1
         fig_salle.update_layout(
-            xaxis=dict(visible=False, range=[-1.5, 7.5]), 
-            yaxis=dict(visible=False, range=[-6.5, 1.5]), 
-            width=500, height=350, 
-            margin=dict(l=0, r=0, t=10, b=10), 
+            xaxis=dict(visible=False, range=[-1.5, 5.0], fixedrange=True), 
+            yaxis=dict(visible=False, range=[-(max_rows * 3.0) + 0.5, 1.5], fixedrange=True), 
+            height=200 + (max_rows * 110), 
+            margin=dict(l=20, r=20, t=20, b=40), 
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", showlegend=False
         )
         
-        # staticPlot=True empêche tout zoom/mouvement intempestif au doigt ou à la souris
-        st.plotly_chart(fig_salle, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+        # Capture de l'événement de sélection natif en mode réactif (fixedrange remplace staticPlot)
+        select_data = st.plotly_chart(fig_salle, use_container_width=True, on_select="rerun", config={'displayModeBar': False})
         
-        # Actions sous le graphique de la salle
-        st.markdown(f"**{TRAD[st.session_state.lang]['table_choix']}**")
-        options_menu = tables_existantes + [TRAD[st.session_state.lang]["creer_table"]]
-        try: index_defaut = options_menu.index(st.session_state.groupe_selectionne)
-        except: index_defaut = 0
-            
-        choix_table = st.selectbox("Menu Salle", options_menu, index=index_defaut, label_visibility="collapsed")
-        
-        if choix_table == TRAD[st.session_state.lang]["creer_table"]:
+        # Interception directe du clic
+        if select_data and "selection" in select_data and "points" in select_data["selection"]:
+            points = select_data["selection"]["points"]
+            if len(points) > 0:
+                clicked_customdata = points[0].get("customdata")
+                if clicked_customdata == "CREER_TABLE":
+                    st.session_state.afficher_creation_table = True
+                elif clicked_customdata in tables_existantes:
+                    st.session_state.groupe_selectionne = clicked_customdata
+                    st.session_state.salle_bar_active = False
+                    st.session_state.afficher_creation_table = False
+                    st.cache_data.clear()
+                    st.rerun()
+
+        # Bloc d'insertion si déclenchement de la création
+        if st.session_state.get("afficher_creation_table", False):
+            st.markdown("---")
             col_nom, col_btn = st.columns([3, 1])
             with col_nom:
                 nom_nouvelle_table = st.text_input("Nom :", label_visibility="collapsed", placeholder=TRAD[st.session_state.lang]["nom_table_placeholder"])
@@ -461,14 +487,9 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     if nom_nouvelle_table.strip():
                         st.session_state.groupe_selectionne = nom_nouvelle_table.strip()
                         st.session_state.salle_bar_active = False
+                        st.session_state.afficher_creation_table = False
                         st.cache_data.clear()
                         st.rerun()
-        else:
-            if st.button(f"🎯 {TRAD[st.session_state.lang]['btn_rejoindre']} : {choix_table}", use_container_width=True):
-                st.session_state.groupe_selectionne = choix_table
-                st.session_state.salle_bar_active = False
-                st.cache_data.clear()
-                st.rerun()
 
     # CAS B : VUE DE LA TABLE ACTIVE AVEC SES CHAISES, COULEURS ET BADGES
     else:
@@ -481,11 +502,9 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
 
         if profils:
             fig_table = go.Figure()
-            # Dessin de la table ronde centrale
             fig_table.add_shape(type="circle", x0=-0.8, y0=-0.8, x1=0.8, y1=0.8, fillcolor="#1A1A1A", line_color="#FF9800", line_width=3)
             fig_table.add_annotation(x=0, y=0, text=groupe_actif, showarrow=False, font=dict(color="#FF9800", size=13, family="Arial", weight="bold"))
             
-            # Positionnement radial des chaises des invités autour de la table
             num_chairs = len(profils)
             angles = np.linspace(0, 2*np.pi, num_chairs, endpoint=False)
             rayon_chaises = 1.2
@@ -499,29 +518,24 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 ty = rayon_texte * np.sin(angle)
                 couleur_chaise = COULEURS_JOUEURS[idx % len(COULEURS_JOUEURS)]
                 
-                # Récupération en direct du taux pour l'affichage du badge sur le siège
                 t_actuel = df_graphique[nom].iloc[idx_maintenant] if nom in df_graphique.columns else 0.0
                 b_emoji = determiner_badge(t_actuel)
                 
-                # Ajout de la couronne si le joueur détient le record max actuel
                 score_max_joueur = stats_joueurs.get(nom, {}).get("max_ever", 0.0)
                 prefixe_couronne = "👑" if (score_max_joueur == record_absolu_groupe and record_absolu_groupe > 0.01) else ""
                 
-                # Représentation de la chaise
                 fig_table.add_shape(type="circle", x0=cx-0.2, y0=cy-0.2, x1=cx+0.2, y1=cy+0.2, fillcolor=couleur_chaise, line_color="#FFFFFF", line_width=2)
-                # Indicateur d'émoji directement incrusté sur le siège
                 fig_table.add_annotation(x=cx, y=cy, text=b_emoji, showarrow=False, font=dict(size=11))
-                # Prénom + Couronne éventuelle à l'extérieur
                 fig_table.add_annotation(x=tx, y=ty, text=f"{prefixe_couronne}{nom}", showarrow=False, font=dict(color="#FFFFFF", size=11, family="Arial"))
 
             fig_table.update_layout(
-                xaxis=dict(visible=False, range=[-2.2, 2.2]), 
-                yaxis=dict(visible=False, range=[-2.2, 2.2]), 
+                xaxis=dict(visible=False, range=[-2.2, 2.2], fixedrange=True), 
+                yaxis=dict(visible=False, range=[-2.2, 2.2], fixedrange=True), 
                 width=350, height=350, 
                 margin=dict(l=0, r=0, t=10, b=10), 
                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", showlegend=False
             )
-            st.plotly_chart(fig_table, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+            st.plotly_chart(fig_table, use_container_width=True, config={'displayModeBar': False})
 
 def envoyer_alerte_whatsapp(pseudo, detail_conso, type_event="Verre"):
     if not URL_WEBHOOK_WHATSAPP or not envoyer_wa: return
@@ -624,7 +638,6 @@ with st.expander(TRAD[st.session_state.lang]["sec3"], expanded=False):
 with st.expander(TRAD[st.session_state.lang]["sec4"], expanded=False):
     st.markdown(f"<h4 style='color: orange; margin-bottom: 10px;'>{TRAD[st.session_state.lang]['record_absolu']} {record_absolu_groupe:.2f} g/L</h4>", unsafe_allow_html=True)
     
-    # Rétablissement complet de la notice explicative des émojis
     st.markdown(f"**{TRAD[st.session_state.lang]['legende_titre']}**")
     col_leg1, col_leg2, col_leg3 = st.columns(3)
     with col_leg1:
@@ -823,7 +836,6 @@ with st.expander(TRAD[st.session_state.lang]["sec11"], expanded=False):
 
 # --- 12. MISE A JOUR & MENTIONS LÉGALES ---
 with st.expander(TRAD[st.session_state.lang]["sec12"], expanded=True):
-    # Placement stratégique demandé du bouton de mise à jour juste avant les avertissements
     if st.button(TRAD[st.session_state.lang]["btn_maj"], use_container_width=True):
         st.cache_data.clear()
         st.rerun()
