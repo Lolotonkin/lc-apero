@@ -415,52 +415,72 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
         
         num_tables = len(tables_existantes)
         for idx, t_name in enumerate(tables_existantes):
-            # Configuration en 2 colonnes larges pour donner de l'espace aux longs labels textuels
-            x_pos = (idx % 2) * 3.5
-            y_pos = -(idx // 2) * 3.0
+            # Espacement élargi pour donner de la place aux grands carrés
+            x_pos = (idx % 2) * 4.0
+            y_pos = -(idx // 2) * 4.0
             
-            color_table = "#FF9800" if t_name == groupe_actif else "#555555"
+            # Nouvelles couleurs plus modernes et translucides
+            if t_name == groupe_actif:
+                fill_color = "rgba(255, 152, 0, 0.2)" # Fond orange
+                line_color = "#FF9800"
+            else:
+                fill_color = "rgba(52, 152, 219, 0.15)" # Fond bleu
+                line_color = "#3498db"
+                
+            # Tronquer le nom s'il est vraiment trop long pour entrer dans le carré
+            nom_affiche = t_name if len(t_name) < 18 else t_name[:15] + "..."
             
-            # Injection de la table en tant que marqueur cliquable
+            # Injection de la table (grand carré avec texte au centre)
             fig_salle.add_trace(go.Scatter(
                 x=[x_pos],
                 y=[y_pos],
                 mode="markers+text",
-                marker=dict(size=65, color="#1A1A1A", line=dict(width=3, color=color_table)),
-                text=[f"📊 {t_name}"],
-                textposition="bottom center",
-                textfont=dict(color="#FFFFFF", size=12, family="Arial"),
+                marker=dict(
+                    symbol="square", 
+                    size=100, 
+                    color=fill_color, 
+                    line=dict(width=4, color=line_color)
+                ),
+                text=[f"<b>{nom_affiche}</b>"],
+                textposition="middle center",
+                textfont=dict(color="#FFFFFF", size=13, family="Arial"),
                 customdata=[t_name],
+                hovertext=[f"Rejoindre la table : {t_name}"],
                 hoverinfo="text"
             ))
 
-        # Position de la table d'ajout virtuelle verte (Seulement si moins de 10 tables)
+        # Position de la table d'ajout virtuelle
         if num_tables < 10:
-            x_add = (num_tables % 2) * 3.5
-            y_add = -(num_tables // 2) * 3.0
+            x_add = (num_tables % 2) * 4.0
+            y_add = -(num_tables // 2) * 4.0
             
             fig_salle.add_trace(go.Scatter(
                 x=[x_add],
                 y=[y_add],
                 mode="markers+text",
-                marker=dict(size=65, color="#000000", line=dict(width=2, color="#2ecc71", dash="dash")),
-                text=[TRAD[st.session_state.lang]["creer_table"]],
-                textposition="bottom center",
-                textfont=dict(color="#2ecc71", size=12, family="Arial"),
+                marker=dict(
+                    symbol="square",
+                    size=100, 
+                    color="rgba(46, 204, 113, 0.1)", 
+                    line=dict(width=3, color="#2ecc71", dash="dash")
+                ),
+                text=[f"<b>➕ Créer</b>"],
+                textposition="middle center",
+                textfont=dict(color="#2ecc71", size=13, family="Arial"),
                 customdata=["CREER_TABLE"],
                 hoverinfo="text"
             ))
 
         max_rows = (num_tables // 2) + 1
         fig_salle.update_layout(
-            xaxis=dict(visible=False, range=[-1.5, 5.0], fixedrange=True), 
-            yaxis=dict(visible=False, range=[-(max_rows * 3.0) + 0.5, 1.5], fixedrange=True), 
-            height=200 + (max_rows * 110), 
-            margin=dict(l=20, r=20, t=20, b=40), 
+            xaxis=dict(visible=False, range=[-2.0, 6.0], fixedrange=True), 
+            yaxis=dict(visible=False, range=[-(max_rows * 4.0) + 1.0, 2.0], fixedrange=True), 
+            height=250 + (max_rows * 130), 
+            margin=dict(l=10, r=10, t=10, b=10), 
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", showlegend=False
         )
         
-        # Capture de l'événement de sélection natif en mode réactif (fixedrange remplace staticPlot)
+        # Capture de l'événement de sélection natif
         select_data = st.plotly_chart(fig_salle, use_container_width=True, on_select="rerun", config={'displayModeBar': False})
         
         # Interception directe du clic
@@ -807,12 +827,31 @@ with st.expander(TRAD[st.session_state.lang]["sec8"], expanded=False):
 # --- 9. FAQ ---
 st.markdown("<div id='faq'></div>", unsafe_allow_html=True)
 with st.expander(TRAD[st.session_state.lang]["sec9"], expanded=False):
+    
     with st.expander("Comment fonctionne le système de tables ?" if st.session_state.lang == "FR" else "How does the table system work?"):
-        st.write("Utilisez l'interface de la Section 1 pour créer ou rejoindre des tables indépendantes.")
+        st.write("Utilisez l'interface de la Section 1 pour créer ou rejoindre des tables indépendantes. Chaque table a son propre historique et ses propres invités." if st.session_state.lang == "FR" else "Use the Section 1 interface to create or join independent tables. Each table has its own history and guests.")
+        
+    with st.expander("Comment inviter des amis sur ma table ?" if st.session_state.lang == "FR" else "How do I invite friends to my table?"):
+        st.write("Allez dans la section '8. Partager l'application'. Vous y trouverez un QR Code que vos amis peuvent scanner, ainsi qu'un lien direct à leur envoyer." if st.session_state.lang == "FR" else "Go to section '8. Share App'. You will find a QR Code for your friends to scan, and a direct link to send them.")
+
     with st.expander("Peut-on utiliser l'application à plusieurs téléphones ?" if st.session_state.lang == "FR" else "Can we use the app on multiple phones?"):
-        st.write("Absolument ! Tout est synchronisé en temps réel sur la base de données cloud.")
+        st.write("Absolument ! Tout est synchronisé en temps réel sur la base de données cloud." if st.session_state.lang == "FR" else "Absolutely! Everything is synced in real-time on the cloud database.")
+
+    with st.expander("Est-ce que je peux corriger un verre si je me suis trompé ?" if st.session_state.lang == "FR" else "Can I correct a drink if I made a mistake?"):
+        st.write("Oui ! Allez dans la section '6. Historique de la soirée'. Vous trouverez une croix rouge (❌) à côté de chaque consommation pour la supprimer." if st.session_state.lang == "FR" else "Yes! Go to section '6. Party Timeline'. You will find a red cross (❌) next to each drink to delete it.")
+
     with st.expander("Pourquoi déclarer un repas ou un grignotage ?" if st.session_state.lang == "FR" else "Why log a meal or a snack?"):
-        st.write("Cela ralentit grandement la vitesse de diffusion de l'alcool dans le sang, lissant votre pic d'alcoolémie.")
+        st.write("Manger ralentit grandement la vitesse d'absorption de l'alcool dans le sang. Le système prend en compte cette digestion pour lisser votre pic d'alcoolémie." if st.session_state.lang == "FR" else "Eating slows down alcohol absorption. The system accounts for this digestion to smooth out your BAC peak.")
+
+    with st.expander("Pourquoi mon taux d'alcool continue de monter alors que je ne bois plus ?" if st.session_state.lang == "FR" else "Why does my BAC keep rising when I stopped drinking?"):
+        st.write("C'est physiologique ! L'alcool met entre 30 minutes (à jeun) et 1 heure (pendant un repas) pour atteindre le sang. Le pic est donc toujours décalé par rapport au moment où vous buvez." if st.session_state.lang == "FR" else "It's physiological! Alcohol takes 30 mins (sober) to 1 hour (with a meal) to reach the blood. The peak is always delayed.")
+
+    with st.expander("Comment sont attribués les badges (Pirate, Zombie...) ?" if st.session_state.lang == "FR" else "How are the badges (Pirate, Zombie...) assigned?"):
+        st.write("Ils dépendent de votre taux (g/L) : Ange (>0), Fêtard (>=1.0), Pirate (>=1.5), et Zombie (>=2.0). C'est juste pour le fun, restez prudents !" if st.session_state.lang == "FR" else "They depend on your BAC (g/L): Angel (>0), Partygoer (>=1.0), Pirate (>=1.5), and Zombie (>=2.0). It's just for fun, stay safe!")
+
+    with st.expander("Que signifie le bouton 'Mettre à jour les données' ?" if st.session_state.lang == "FR" else "What does the 'Refresh Data' button do?"):
+        st.write("Il force l'application à re-télécharger toutes les informations depuis la base de données. Très utile si vous avez un petit décalage réseau !" if st.session_state.lang == "FR" else "It forces the app to re-download all information from the database. Very useful if you have a slight network delay!")
+
 
 # --- 10. VERSIONS & MISES À JOUR ---
 with st.expander(TRAD[st.session_state.lang]["sec10"], expanded=False):
