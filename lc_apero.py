@@ -808,9 +808,12 @@ with st.expander(TRAD[st.session_state.lang]["sec7"], expanded=False):
             with c3: nouveau_poids_inv = st.number_input("Poids (kg)", 40, 150, 70)
             if st.button(TRAD[st.session_state.lang]["btn_ajouter_table"]):
                 if nouveau_nom and nouveau_nom not in profils:
-                    supabase.table("profils").insert({"pseudo": nouveau_nom, "sexe": "Homme" if nouveau_sexe == "Homme" else "Femme", "poids": nouveau_poids_inv, "groupe": groupe_actif}).execute()
-                    st.cache_data.clear()
-                    st.rerun()
+                    try:
+                        supabase.table("profils").insert({"pseudo": nouveau_nom, "sexe": "Homme" if nouveau_sexe == "Homme" else "Femme", "poids": nouveau_poids_inv, "groupe": groupe_actif}).execute()
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"🚨 Supabase a refusé l'insertion du profil. Raison : {e}")
 
     with tab_Supprimer:
         if profils:
