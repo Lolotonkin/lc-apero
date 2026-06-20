@@ -23,6 +23,13 @@ st.markdown("""
     <style>
     /* Thème général & Tailles réduites */
     .stApp, .stApp > header { background-color: #000000 !important; color: #FFFFFF !important; }
+    
+    /* --- NOUVEAU : CORRECTION POUR LE SCROLL MOBILE --- */
+    .main, .stApp, .stPlotlyChart, div[data-testid="stPlotlyChart"] {
+        touch-action: pan-y !important;
+    }
+    /* --------------------------------------------------- */
+
     h1 { color: #FF9800 !important; font-weight: bold !important; font-size: 2.0em !important; }
     h2 { color: #FF9800 !important; font-weight: bold !important; font-size: 1.5em !important; }
     h3, p, span, label, div[data-testid="stMarkdownContainer"] { color: #FFFFFF !important; }
@@ -266,6 +273,7 @@ def charger_profils(groupe):
 groupe_actif = st.session_state.groupe_selectionne
 profils = charger_profils(groupe_actif)
 
+# --- NOUVEAU : CORRECTION DE L'ERREUR SUPABASE (TRY/EXCEPT) ---
 # Initialisation par défaut si vide et Haggis
 if not profils and groupe_actif == "Haggis et les cafards":
     defauts = [
@@ -274,9 +282,13 @@ if not profils and groupe_actif == "Haggis et les cafards":
         {"pseudo": "Nico", "sexe": "Homme", "poids": 75, "groupe": groupe_actif},
         {"pseudo": "Duj", "sexe": "Homme", "poids": 75, "groupe": groupe_actif}
     ]
-    supabase.table("profils").insert(defauts).execute()
-    st.cache_data.clear()
-    profils = charger_profils(groupe_actif)
+    try:
+        supabase.table("profils").insert(defauts).execute()
+        st.cache_data.clear()
+        profils = charger_profils(groupe_actif)
+    except Exception as e:
+        print(f"Erreur d'insertion des profils (ignorée) : {e}")
+# --------------------------------------------------------------
 
 # --- CALCUL PRÉLIMINAIRE DES TAUX POUR LES BADGES DU PLAN DE TABLE ---
 @st.cache_data(ttl=2)
@@ -511,7 +523,6 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                         if nom_nouvelle_table.strip():
                             nom_t = nom_nouvelle_table.strip()
                             
-                            # --- CORRECTIF : Forcer la création de la table côté base de données ---
                             try:
                                 supabase.table("profils").insert({
                                     "pseudo": "Hôte", 
@@ -521,7 +532,6 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                                 }).execute()
                             except:
                                 pass
-                            # -----------------------------------------------------------------------
                             
                             st.session_state.groupe_selectionne = nom_t
                             st.session_state.salle_bar_active = False
