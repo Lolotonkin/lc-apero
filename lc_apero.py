@@ -240,7 +240,7 @@ def obtenir_toutes_les_tables():
 col_titre, col_lang = st.columns([3, 1])
 with col_titre:
     st.title(TRAD[st.session_state.lang]["titre"])
-    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.1 - Fix Affichage</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.3 - Clics & Fixes</h5>", unsafe_allow_html=True)
 with col_lang:
     lang_choix = st.radio("Langue", ["🇫🇷 FR", "🇬🇧 EN"], horizontal=True, label_visibility="collapsed")
     st.session_state.lang = "FR" if "🇫🇷" in lang_choix else "EN"
@@ -429,7 +429,7 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, type_event="Boisson"):
 # --- 1. CONFIGURATION DE LA SALLE DE BAR ET TABLE ACTIVE ---
 with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
     
-    # CAS A : VUE SALLE DE BAR GLOBALE INTERACTIVE
+    # CAS A : VUE SALLE DE BAR GLOBALE (RETOUR AUX CLICS PLOTLY)
     if st.session_state.salle_bar_active:
         st.markdown(f"### 🚪 Grand Salon des Tables")
         
@@ -459,7 +459,7 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     color=fill_color, 
                     line=dict(width=4, color=line_color)
                 ),
-                text=[f"<br><b>{nom_affiche}</b>"], # Le saut de ligne pousse le texte vers le bas
+                text=[f"<br><b>{nom_affiche}</b>"], 
                 textposition="bottom center",
                 textfont=dict(color="#FFFFFF", size=13, family="Arial"),
                 customdata=[t_name],
@@ -497,16 +497,16 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
             )
 
         max_rows = (num_tables // 2) + 1
-        # Range Y ajusté pour éviter que le texte du bas soit coupé
         fig_salle.update_layout(
             xaxis=dict(visible=False, range=[-2.0, 6.0], fixedrange=True), 
             yaxis=dict(visible=False, range=[-(max_rows * 4.0) + 0.0, 2.0], fixedrange=True), 
             height=250 + (max_rows * 130), 
             margin=dict(l=10, r=10, t=10, b=10), 
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", showlegend=False,
-            dragmode=False
+            dragmode=False # Désactive le glisser-déposer interne pour aider le scroll mobile
         )
         
+        # Le graphique reste interactif pour permettre les clics sur les tables
         select_data = st.plotly_chart(fig_salle, use_container_width=True, on_select="rerun", config={'displayModeBar': False})
         
         if select_data and "selection" in select_data and "points" in select_data["selection"]:
@@ -549,7 +549,7 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                             st.cache_data.clear()
                             st.rerun()
 
-    # CAS B : VUE DE LA TABLE ACTIVE AVEC SES CHAISES ET BADGES
+    # CAS B : VUE DE LA TABLE ACTIVE (TOTALEMENT FIXE POUR SCROLL PARFAIT)
     else:
         st.markdown(f"### 🍹 Table active : {groupe_actif}")
         if st.button(TRAD[st.session_state.lang]["btn_retour_bar"], use_container_width=True):
@@ -575,10 +575,9 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 
                 taux_actuel = df_graphique[nom].iloc[idx_maintenant] if nom in df_graphique.columns else 0.0
                 badge = determiner_badge(taux_actuel)
-                
                 couleur_j = COULEURS_JOUEURS[idx % len(COULEURS_JOUEURS)]
                 
-                # Tracé de la chaise ronde avec le badge émoji au centre
+                # Tracé de la chaise
                 fig_table.add_trace(go.Scatter(
                     x=[cx], y=[cy],
                     mode="markers+text",
@@ -586,39 +585,37 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     text=[badge],
                     textposition="middle center",
                     textfont=dict(size=18),
-                    hoverinfo="text",
-                    hovertext=f"{nom} : {taux_actuel:.2f} g/L",
                     showlegend=False
                 ))
                 
-                # Calcul de la position du texte projetée vers l'extérieur pour éviter le chevauchement
-                offset_texte = 0.55
+                # OFFSET ENCORE PLUS GRAND : les textes sont repoussés bien à l'extérieur des chaises
+                offset_texte = 1.1
                 tx = (rayon_chaises + offset_texte) * np.cos(angle)
                 ty = (rayon_chaises + offset_texte) * np.sin(angle)
 
-                # Tracé du texte uniquement (Nom + Taux à l'extérieur de la chaise)
+                # Tracé du texte (Nom + Taux en petit)
                 fig_table.add_trace(go.Scatter(
                     x=[tx], y=[ty],
                     mode="text",
-                    text=[f"<b>{nom}</b><br>{taux_actuel:.2f}g/L"],
+                    text=[f"<b>{nom}</b><br><span style='font-size:10px'>{taux_actuel:.2f}g/L</span>"],
                     textposition="middle center",
                     textfont=dict(color="#FFFFFF", size=12, family="Arial"),
-                    hoverinfo="skip",
                     showlegend=False
                 ))
                 
-            # Range X et Y élargis pour s'assurer que les textes externes ne sont pas coupés
+            # Range X et Y très larges pour éviter que les textes excentrés ne soient coupés
             fig_table.update_layout(
-                xaxis=dict(visible=False, range=[-2.6, 2.6], fixedrange=True),
-                yaxis=dict(visible=False, range=[-2.6, 2.6], fixedrange=True),
-                width=350, height=350,
-                margin=dict(l=10, r=10, t=10, b=10),
+                xaxis=dict(visible=False, range=[-3.5, 3.5], fixedrange=True),
+                yaxis=dict(visible=False, range=[-3.5, 3.5], fixedrange=True),
+                width=380, height=380,
+                margin=dict(l=5, r=5, t=5, b=5),
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(0,0,0,0)",
                 dragmode=False
             )
             
-            st.plotly_chart(fig_table, config={'displayModeBar': False})
+            # GRAPHIQUE FIXE : staticPlot=True résout à 100% le problème de scroll sur cette vue !
+            st.plotly_chart(fig_table, config={'displayModeBar': False, 'staticPlot': True})
 
 # --- 2. DÉCLARATION DES CONSOMMATIONS ---
 with st.expander(TRAD[st.session_state.lang]["sec2"], expanded=False):
@@ -740,9 +737,9 @@ with st.expander(TRAD[st.session_state.lang]["sec4"], expanded=False):
 # --- 5. COURBES (ÉVOLUTION) ---
 with st.expander(TRAD[st.session_state.lang]["sec5"], expanded=False):
     if not df_verres.empty and profils:
-        col_c1, col_c2 = st.columns(2)
-        with col_c1: h_avant = st.slider("Heures passées à afficher", 1, 24, 6)
-        with col_c2: h_apres = st.slider("Heures futures à projeter", 1, 12, 4)
+        # RETOUR AUX FENÊTRES DE TEMPS FIXES (RADIO BOUTONS)
+        choix_vue = st.radio("Période / Period :", ["Standard (H-2 à H+6)", "Demi-journée (H-12 à H+12)", "Week-end (H-24 à H+12)"], horizontal=True, label_visibility="collapsed")
+        h_avant, h_apres = (2, 6) if "Standard" in choix_vue else ((12, 12) if "Demi-journée" in choix_vue else (24, 12))
         
         fig = go.Figure()
         for i, nom in enumerate(profils.keys()):
@@ -857,9 +854,11 @@ with st.expander(TRAD[st.session_state.lang]["sec9"], expanded=False):
 # --- 10. VERSION & NOTES DE MISE A JOUR ---
 with st.expander(TRAD[st.session_state.lang]["sec10"], expanded=False):
     st.markdown("""
-    * 🚀 **Version 4.1**
-    * 📊 **Ajustement Graphique** : Textes des tables déplacés en dessous des cadres. Textes des joueurs de la table active poussés vers l'extérieur pour éviter de masquer l'icône de l'état.
-    * 📱 **Optimisation Tactile** : Maintien du patch anti-zoom intempestif.
+    * 🚀 **Version 4.3**
+    * 🧭 **Retour du Grand Salon Cliquable** : Les tables peuvent à nouveau être sélectionnées par un simple clic.
+    * 🛑 **Scroll Parfait sur la Table Active** : La table d'apéro est "figée" graphiquement (staticPlot=True) empêchant totalement Plotly de bloquer le défilement du doigt.
+    * 🪑 **Texte extra-large** : Les noms et l'alcoolémie sont repoussés encore plus loin de la chaise pour ne pas mordre sur le badge et la police du taux a été affinée.
+    * 📊 **Retour des courbes temporelles** : Option ré-implémentée pour les vues Standard, Demi-journée et Week-end.
     """)
 
 # --- 11. ZONE DE DANGER (GESTION BDD) ---
