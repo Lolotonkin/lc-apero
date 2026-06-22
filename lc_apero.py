@@ -212,13 +212,15 @@ TRAD = {
 
 # --- CONNEXION SUPABASE ---
 SUPABASE_URL = "https://rjexlotreipfjbgpfcnt.supabase.co"
-SUPABASE_KEY = "sb_secret_GKKZEB9HAwV4ga0WZwuVTg_teRjfL18"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqZXhsb3RyZWlwZmpiZ3BmY250Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDUyOTkyNywiZXhwIjoyMDk2MTA1OTI3fQ.0vMnopwPCMQaOmzCPNcdc4HLqr1d1npoqL3xXNnxGQ8"
 
 @st.cache_resource
 def init_supabase():
-    try: return create_client(SUPABASE_URL, SUPABASE_KEY)
+    try: 
+        from supabase import create_client
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception as e:
-        st.error(f"🔑 Erreur Supabase : {e}")
+        st.error(f"🔑 Erreur de connexion Supabase : {e}")
         st.stop()
 
 supabase = init_supabase()
