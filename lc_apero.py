@@ -676,7 +676,7 @@ with st.expander(TRAD[st.session_state.lang]["sec2"], expanded=False):
                 st.rerun()
 
 # --- 3. TABLEAU DE BORD INSTANTANÉ ---
-with st.expander(TRAD[st.session_state.lang]["sec3"], expanded=True):
+with st.expander(TRAD[st.session_state.lang]["sec3"], expanded=False):
     if not profils:
         st.info(TRAD[st.session_state.lang]["txt_attente_profils"])
     else:
@@ -886,7 +886,7 @@ with st.expander(TRAD[st.session_state.lang]["sec11"], expanded=False):
                 st.error("Mot de passe incorrect." if st.session_state.lang == "FR" else "Incorrect password.")
 
 # --- 12. METTRE A JOUR L'APPLICATION & MENTIONS LÉGALES ---
-with st.expander(TRAD[st.session_state.lang]["sec12"], expanded=True):
+with st.expander(TRAD[st.session_state.lang]["sec12"], expanded=False):
     if st.button(TRAD[st.session_state.lang]["btn_maj"], use_container_width=True):
         st.cache_data.clear()
         st.rerun()
