@@ -24,7 +24,7 @@ st.markdown("""
     /* Thème général & Tailles réduites */
     .stApp, .stApp > header { background-color: #000000 !important; color: #FFFFFF !important; }
     
-    /* --- NOUVEAU : CORRECTION POUR LE SCROLL MOBILE --- */
+    /* --- CORRECTION POUR LE SCROLL MOBILE --- */
     .main, .stApp, .stPlotlyChart, div[data-testid="stPlotlyChart"] {
         touch-action: pan-y !important;
     }
@@ -34,7 +34,7 @@ st.markdown("""
     h2 { color: #FF9800 !important; font-weight: bold !important; font-size: 1.5em !important; }
     h3, p, span, label, div[data-testid="stMarkdownContainer"] { color: #FFFFFF !important; }
     
-    /* Boutons généraux (harmonisation avec les expanders) */
+    /* Boutons généraux */
     div[data-testid="stButton"] > button, 
     div[data-testid="stFormSubmitButton"] > button { 
         background-color: #1A1A1A !important;
@@ -50,7 +50,7 @@ st.markdown("""
         color: #FFFFFF !important;
     }
     
-    /* Champs de saisie & Selectbox (Fond sombre, bordure arrondie) */
+    /* Champs de saisie & Selectbox */
     .stTextInput input, .stNumberInput input, div[data-baseweb="select"], div[data-baseweb="select"] > div { 
         background-color: #1A1A1A !important;
         color: #FFFFFF !important; 
@@ -71,7 +71,6 @@ st.markdown("""
     /* Expanders & Métriques */
     div[data-testid="stExpander"] { background-color: #1A1A1A !important; border: 1px solid #FF9800 !important; border-radius: 8px !important; margin-bottom: 5px; }
     
-    /* Correction visibilité titres expanders légèrement réduits */
     div[data-testid="stExpander"] summary, div[data-testid="stExpander"] summary * { 
         color: #FF9800 !important;
         font-weight: bold !important; 
@@ -241,7 +240,7 @@ def obtenir_toutes_les_tables():
 col_titre, col_lang = st.columns([3, 1])
 with col_titre:
     st.title(TRAD[st.session_state.lang]["titre"])
-    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.0</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.1 - Fix Affichage</h5>", unsafe_allow_html=True)
 with col_lang:
     lang_choix = st.radio("Langue", ["🇫🇷 FR", "🇬🇧 EN"], horizontal=True, label_visibility="collapsed")
     st.session_state.lang = "FR" if "🇫🇷" in lang_choix else "EN"
@@ -286,7 +285,7 @@ if not profils and groupe_actif == "Haggis et les cafards":
         st.cache_data.clear()
         profils = charger_profils(groupe_actif)
     except Exception as e:
-        print(f"Erreur d'insertion des profils (ignorée) : {e}")
+        print(f"Erreur d'insertion des profils : {e}")
 
 # --- CALCUL PRÉLIMINAIRE DES TAUX POUR LES BADGES DU PLAN DE TABLE ---
 @st.cache_data(ttl=2)
@@ -449,6 +448,7 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 
             nom_affiche = t_name if len(t_name) < 18 else t_name[:15] + "..."
             
+            # Tracé de la table (Carré + Texte forcé en dessous avec <br>)
             fig_salle.add_trace(go.Scatter(
                 x=[x_pos],
                 y=[y_pos],
@@ -459,13 +459,18 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     color=fill_color, 
                     line=dict(width=4, color=line_color)
                 ),
-                text=[f"<b>{nom_affiche}</b>"],
-                textposition="middle center",
+                text=[f"<br><b>{nom_affiche}</b>"], # Le saut de ligne pousse le texte vers le bas
+                textposition="bottom center",
                 textfont=dict(color="#FFFFFF", size=13, family="Arial"),
                 customdata=[t_name],
                 hovertext=[f"Rejoindre la table : {t_name}"],
                 hoverinfo="text"
             ))
+            
+            # Émoji central rajouté séparément
+            fig_salle.add_annotation(
+                x=x_pos, y=y_pos, text="🍻", showarrow=False, font=dict(size=30)
+            )
 
         if num_tables < 10:
             x_add = (num_tables % 2) * 4.0
@@ -481,20 +486,25 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     color="rgba(46, 204, 113, 0.1)", 
                     line=dict(width=3, color="#2ecc71", dash="dash")
                 ),
-                text=[f"<b>➕ Créer</b>"],
-                textposition="middle center",
+                text=[f"<br><b>➕ Créer</b>"],
+                textposition="bottom center",
                 textfont=dict(color="#2ecc71", size=13, family="Arial"),
                 customdata=["CREER_TABLE"],
                 hoverinfo="text"
             ))
+            fig_salle.add_annotation(
+                x=x_add, y=y_add, text="📝", showarrow=False, font=dict(size=30)
+            )
 
         max_rows = (num_tables // 2) + 1
+        # Range Y ajusté pour éviter que le texte du bas soit coupé
         fig_salle.update_layout(
             xaxis=dict(visible=False, range=[-2.0, 6.0], fixedrange=True), 
-            yaxis=dict(visible=False, range=[-(max_rows * 4.0) + 1.0, 2.0], fixedrange=True), 
+            yaxis=dict(visible=False, range=[-(max_rows * 4.0) + 0.0, 2.0], fixedrange=True), 
             height=250 + (max_rows * 130), 
             margin=dict(l=10, r=10, t=10, b=10), 
-            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", showlegend=False
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", showlegend=False,
+            dragmode=False
         )
         
         select_data = st.plotly_chart(fig_salle, use_container_width=True, on_select="rerun", config={'displayModeBar': False})
@@ -581,21 +591,27 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     showlegend=False
                 ))
                 
-                # Positionnement fixe des étiquettes (Nom + Taux sous la chaise)
+                # Calcul de la position du texte projetée vers l'extérieur pour éviter le chevauchement
+                offset_texte = 0.55
+                tx = (rayon_chaises + offset_texte) * np.cos(angle)
+                ty = (rayon_chaises + offset_texte) * np.sin(angle)
+
+                # Tracé du texte uniquement (Nom + Taux à l'extérieur de la chaise)
                 fig_table.add_trace(go.Scatter(
-                    x=[cx], y=[cy - 0.22],
+                    x=[tx], y=[ty],
                     mode="text",
                     text=[f"<b>{nom}</b><br>{taux_actuel:.2f}g/L"],
-                    textposition="bottom center",
-                    textfont=dict(color="#FFFFFF", size=11, family="Arial"),
+                    textposition="middle center",
+                    textfont=dict(color="#FFFFFF", size=12, family="Arial"),
                     hoverinfo="skip",
                     showlegend=False
                 ))
                 
+            # Range X et Y élargis pour s'assurer que les textes externes ne sont pas coupés
             fig_table.update_layout(
-                xaxis=dict(visible=False, range=[-2.2, 2.2], fixedrange=True),
-                yaxis=dict(visible=False, range=[-2.2, 2.2], fixedrange=True),
-                width=340, height=340,
+                xaxis=dict(visible=False, range=[-2.6, 2.6], fixedrange=True),
+                yaxis=dict(visible=False, range=[-2.6, 2.6], fixedrange=True),
+                width=350, height=350,
                 margin=dict(l=10, r=10, t=10, b=10),
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(0,0,0,0)",
@@ -841,10 +857,9 @@ with st.expander(TRAD[st.session_state.lang]["sec9"], expanded=False):
 # --- 10. VERSION & NOTES DE MISE A JOUR ---
 with st.expander(TRAD[st.session_state.lang]["sec10"], expanded=False):
     st.markdown("""
-    * 🚀 **Version 4.0**
-    * 📊 **Plan de Table Interactif** : Une représentation en 2D dynamique affiche en temps réel le niveau d'alcoolémie actuel et le statut du leader (couronne).
-    * 📱 **Optimisation Tactile** : Blocage total des zooms intempestifs sur les schémas géométriques pour éviter d'entraver le défilement.
-    * 🔄 **Bouton Relocalisé** : Le rafraîchissement des données se fait désormais au bas de la page.
+    * 🚀 **Version 4.1**
+    * 📊 **Ajustement Graphique** : Textes des tables déplacés en dessous des cadres. Textes des joueurs de la table active poussés vers l'extérieur pour éviter de masquer l'icône de l'état.
+    * 📱 **Optimisation Tactile** : Maintien du patch anti-zoom intempestif.
     """)
 
 # --- 11. ZONE DE DANGER (GESTION BDD) ---
