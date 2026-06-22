@@ -25,7 +25,7 @@ st.markdown("""
     .stApp, .stApp > header { background-color: #000000 !important; color: #FFFFFF !important; }
     
     /* --- CORRECTION POUR LE SCROLL MOBILE --- */
-    .main, .stApp, .stPlotlyChart, div[data-testid="stPlotlyChart"] {
+    .main, .stApp, .stApp > header, .stPlotlyChart, div[data-testid="stPlotlyChart"] {
         touch-action: pan-y !important;
     }
     /* --------------------------------------------------- */
@@ -240,7 +240,7 @@ def obtenir_toutes_les_tables():
 col_titre, col_lang = st.columns([3, 1])
 with col_titre:
     st.title(TRAD[st.session_state.lang]["titre"])
-    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.3 - Clics & Fixes</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.4 - Suivi Multi-tables</h5>", unsafe_allow_html=True)
 with col_lang:
     lang_choix = st.radio("Langue", ["🇫🇷 FR", "🇬🇧 EN"], horizontal=True, label_visibility="collapsed")
     st.session_state.lang = "FR" if "🇫🇷" in lang_choix else "EN"
@@ -287,16 +287,19 @@ if not profils and groupe_actif == "Haggis et les cafards":
     except Exception as e:
         print(f"Erreur d'insertion des profils : {e}")
 
-# --- CALCUL PRÉLIMINAIRE DES TAUX POUR LES BADGES DU PLAN DE TABLE ---
+# --- CALCUL DES TAUX AVEC LOGIQUE DE SUIVI CONTINU ---
 @st.cache_data(ttl=2)
-def charger_donnees(groupe):
+def charger_donnees(groupe, liste_pseudos):
+    if not liste_pseudos:
+        return [], []
     try:
-        boissons = supabase.table("drinks").select("*").eq("groupe", groupe).order("created_at", desc=False).execute()
-        repas = supabase.table("meals").select("*").eq("groupe", groupe).order("created_at", desc=False).execute()
+        # On extrait tout l'historique des membres de la table, peu importe où ils ont consommé
+        boissons = supabase.table("drinks").select("*").in_("pseudo", liste_pseudos).order("created_at", desc=False).execute()
+        repas = supabase.table("meals").select("*").in_("pseudo", liste_pseudos).order("created_at", desc=False).execute()
         return (boissons.data or []), (repas.data or [])
     except: return [], []
 
-boissons_nuageuses, repas_nuage = charger_donnees(groupe_actif)
+boissons_nuageuses, repas_nuage = charger_donnees(groupe_actif, list(profils.keys()))
 
 maintenant = pd.Timestamp.now(tz='Europe/Paris')
 maintenant_arrondi = maintenant.floor('5min')
@@ -448,7 +451,7 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 
             nom_affiche = t_name if len(t_name) < 18 else t_name[:15] + "..."
             
-            # Tracé de la table (Carré + Texte forcé en dessous avec <br>)
+            # Tracé de la table
             fig_salle.add_trace(go.Scatter(
                 x=[x_pos],
                 y=[y_pos],
@@ -467,7 +470,7 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 hoverinfo="text"
             ))
             
-            # Émoji central rajouté séparément
+            # Émoji central
             fig_salle.add_annotation(
                 x=x_pos, y=y_pos, text="🍻", showarrow=False, font=dict(size=30)
             )
@@ -503,10 +506,9 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
             height=250 + (max_rows * 130), 
             margin=dict(l=10, r=10, t=10, b=10), 
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", showlegend=False,
-            dragmode=False # Désactive le glisser-déposer interne pour aider le scroll mobile
+            dragmode=False
         )
         
-        # Le graphique reste interactif pour permettre les clics sur les tables
         select_data = st.plotly_chart(fig_salle, use_container_width=True, on_select="rerun", config={'displayModeBar': False})
         
         if select_data and "selection" in select_data and "points" in select_data["selection"]:
@@ -516,6 +518,13 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 if clicked_customdata == "CREER_TABLE":
                     st.session_state.afficher_creation_table = True
                 elif clicked_customdata in tables_existantes:
+                    # --- NOUVEAUTÉ : DÉMÉNAGEMENT LOGIQUE DE LA CHAISE DE LOLO ---
+                    if "Lolo" in profils:
+                        try:
+                            supabase.table("profils").update({"groupe": clicked_customdata}).eq("id", profils["Lolo"]["id"]).execute()
+                        except:
+                            pass
+                    
                     st.session_state.groupe_selectionne = clicked_customdata
                     st.session_state.salle_bar_active = False
                     st.session_state.afficher_creation_table = False
@@ -534,22 +543,29 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     if st.button(TRAD[st.session_state.lang]["btn_rejoindre"], use_container_width=True):
                         if nom_nouvelle_table.strip():
                             nom_t = nom_nouvelle_table.strip()
-                            try:
-                                supabase.table("profils").insert({
-                                    "pseudo": "Hôte",
-                                    "sexe": "Homme",
-                                    "poids": 75,
-                                    "groupe": nom_t
-                                }).execute()
-                            except:
-                                pass
+                            # --- NOUVEAUTÉ : ASSIGNATION DIRECTE DE LOLO A LA NOUVELLE TABLE SI EXISTANT ---
+                            if "Lolo" in profils:
+                                try:
+                                    supabase.table("profils").update({"groupe": nom_t}).eq("id", profils["Lolo"]["id"]).execute()
+                                except:
+                                    pass
+                            else:
+                                try:
+                                    supabase.table("profils").insert({
+                                        "pseudo": "Lolo",
+                                        "sexe": "Homme",
+                                        "poids": 75,
+                                        "groupe": nom_t
+                                    }).execute()
+                                except:
+                                    pass
                             st.session_state.groupe_selectionne = nom_t
                             st.session_state.salle_bar_active = False
                             st.session_state.afficher_creation_table = False
                             st.cache_data.clear()
                             st.rerun()
 
-    # CAS B : VUE DE LA TABLE ACTIVE (TOTALEMENT FIXE POUR SCROLL PARFAIT)
+    # CAS B : VUE DE LA TABLE ACTIVE
     else:
         st.markdown(f"### 🍹 Table active : {groupe_actif}")
         if st.button(TRAD[st.session_state.lang]["btn_retour_bar"], use_container_width=True):
@@ -560,7 +576,6 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
         if profils:
             fig_table = go.Figure()
             
-            # Grande table ronde centrale
             fig_table.add_shape(type="circle", x0=-0.8, y0=-0.8, x1=0.8, y1=0.8, fillcolor="#1A1A1A", line_color="#FF9800", line_width=3)
             fig_table.add_annotation(x=0, y=0, text="🍻", showarrow=False, font=dict(size=30))
             
@@ -577,7 +592,6 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 badge = determiner_badge(taux_actuel)
                 couleur_j = COULEURS_JOUEURS[idx % len(COULEURS_JOUEURS)]
                 
-                # Tracé de la chaise
                 fig_table.add_trace(go.Scatter(
                     x=[cx], y=[cy],
                     mode="markers+text",
@@ -588,12 +602,10 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     showlegend=False
                 ))
                 
-                # OFFSET ENCORE PLUS GRAND : les textes sont repoussés bien à l'extérieur des chaises
                 offset_texte = 1.1
                 tx = (rayon_chaises + offset_texte) * np.cos(angle)
                 ty = (rayon_chaises + offset_texte) * np.sin(angle)
 
-                # Tracé du texte (Nom + Taux en petit)
                 fig_table.add_trace(go.Scatter(
                     x=[tx], y=[ty],
                     mode="text",
@@ -603,7 +615,6 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     showlegend=False
                 ))
                 
-            # Range X et Y très larges pour éviter que les textes excentrés ne soient coupés
             fig_table.update_layout(
                 xaxis=dict(visible=False, range=[-3.5, 3.5], fixedrange=True),
                 yaxis=dict(visible=False, range=[-3.5, 3.5], fixedrange=True),
@@ -614,7 +625,6 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 dragmode=False
             )
             
-            # GRAPHIQUE FIXE : staticPlot=True résout à 100% le problème de scroll sur cette vue !
             st.plotly_chart(fig_table, config={'displayModeBar': False, 'staticPlot': True})
 
 # --- 2. DÉCLARATION DES CONSOMMATIONS ---
@@ -737,7 +747,6 @@ with st.expander(TRAD[st.session_state.lang]["sec4"], expanded=False):
 # --- 5. COURBES (ÉVOLUTION) ---
 with st.expander(TRAD[st.session_state.lang]["sec5"], expanded=False):
     if not df_verres.empty and profils:
-        # RETOUR AUX FENÊTRES DE TEMPS FIXES (RADIO BOUTONS)
         choix_vue = st.radio("Période / Period :", ["Standard (H-2 à H+6)", "Demi-journée (H-12 à H+12)", "Week-end (H-24 à H+12)"], horizontal=True, label_visibility="collapsed")
         h_avant, h_apres = (2, 6) if "Standard" in choix_vue else ((12, 12) if "Demi-journée" in choix_vue else (24, 12))
         
@@ -854,11 +863,11 @@ with st.expander(TRAD[st.session_state.lang]["sec9"], expanded=False):
 # --- 10. VERSION & NOTES DE MISE A JOUR ---
 with st.expander(TRAD[st.session_state.lang]["sec10"], expanded=False):
     st.markdown("""
-    * 🚀 **Version 4.3**
-    * 🧭 **Retour du Grand Salon Cliquable** : Les tables peuvent à nouveau être sélectionnées par un simple clic.
-    * 🛑 **Scroll Parfait sur la Table Active** : La table d'apéro est "figée" graphiquement (staticPlot=True) empêchant totalement Plotly de bloquer le défilement du doigt.
-    * 🪑 **Texte extra-large** : Les noms et l'alcoolémie sont repoussés encore plus loin de la chaise pour ne pas mordre sur le badge et la police du taux a été affinée.
-    * 📊 **Retour des courbes temporelles** : Option ré-implémentée pour les vues Standard, Demi-journée et Week-end.
+    * 🚀 **Version 4.4**
+    * 🔄 **Suivi Physiologique Continu** : Ton profil et ton historique d'alcoolémie te suivent dynamiquement d'une table à l'autre en cours de soirée.
+    * 🧭 **Grand Salon Dynamique** : Cliquer sur une table déplace instantanément ta chaise virtuelle vers le nouveau groupe dans la base de données.
+    * 🛑 **Scroll Parfait sur la Table Active** : Table d'apéro fixée graphiquement (`staticPlot=True`) pour un défilement tactile fluide.
+    * 🪑 **Texte affiné** : Noms et alcoolémies décalés au maximum des badges pour éliminer toute superposition visuelle.
     """)
 
 # --- 11. ZONE DE DANGER (GESTION BDD) ---
