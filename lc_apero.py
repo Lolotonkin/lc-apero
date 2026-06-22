@@ -212,7 +212,7 @@ TRAD = {
 
 # --- CONNEXION SUPABASE ---
 SUPABASE_URL = "https://rjexlotreipfjbgpfcnt.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqZXhsb3RyZWlwZmpiZ3BmY250Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1Mjk5MjcsImV4cCI6MjA5NjEwNTkyN30._n3kGjNmlDiMzUskdgWUJmsNrADUkx6ZZRQcpAiQfrw"
+SUPABASE_KEY = "sb_secret_GKKZEB9HAwV4ga0WZwuVTg_teRjfL18"
 
 @st.cache_resource
 def init_supabase():
