@@ -140,8 +140,6 @@ TRAD = {
         "btn_ajouter_table": "Ajouter à la table",
         "suppr_qui": "Supprimer qui ?",
         "btn_confirmer_suppr": "Confirmer Suppression ❌",
-        "lien_direct": "Lien direct à copier/coller :",
-        "qr_caption": "Scanner pour rejoindre la table",
         "danger_titre": "Action souhaitée :",
         "danger_vider": "🧹 Vider uniquement l'historique (Garder les profils)",
         "danger_suppr_tout": "🗑️ SUPPRIMER ENTIÈREMENT LA TABLE",
@@ -223,6 +221,20 @@ def init_supabase():
 supabase = init_supabase()
 URL_WEBHOOK_WHATSAPP = st.secrets.get("URL_WEBHOOK_WHATSAPP", "")
 
+# --- SECURITE ET ANCRAGE GLOBALE DE LOLO ---
+@st.cache_data(ttl=2)
+def assurer_existence_lolo():
+    try:
+        rep = supabase.table("profils").select("*").eq("pseudo", "Lolo").execute()
+        if not rep.data:
+            supabase.table("profils").insert({
+                "pseudo": "Lolo", "sexe": "Homme", "poids": 75, "groupe": "Haggis et les cafards"
+            }).execute()
+    except:
+        pass
+
+assurer_existence_lolo()
+
 # --- FONCTIONS DONNÉES ---
 @st.cache_data(ttl=2)
 def obtenir_toutes_les_tables():
@@ -240,7 +252,7 @@ def obtenir_toutes_les_tables():
 col_titre, col_lang = st.columns([3, 1])
 with col_titre:
     st.title(TRAD[st.session_state.lang]["titre"])
-    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.4 - Suivi Multi-tables</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.5 - Suivi Multi-tables</h5>", unsafe_allow_html=True)
 with col_lang:
     lang_choix = st.radio("Langue", ["🇫🇷 FR", "🇬🇧 EN"], horizontal=True, label_visibility="collapsed")
     st.session_state.lang = "FR" if "🇫🇷" in lang_choix else "EN"
@@ -265,9 +277,14 @@ if st.session_state.groupe_selectionne not in tables_existantes:
 @st.cache_data(ttl=2)
 def charger_profils(groupe):
     try:
-        rep = supabase.table("profils").select("*").eq("groupe", groupe).execute()
+        rep = supabase.table("profils").select("*").eq("groupe", group).execute()
         return {p['pseudo']: {"sexe": p['sexe'], "poids": p['poids'], "id": p['id']} for p in rep.data} if rep.data else {}
-    except: return {}
+    except:
+        # Fallback direct en cas d'erreur ou d'asynchronisme
+        try:
+            rep = supabase.table("profils").select("*").eq("groupe", groupe).execute()
+            return {p['pseudo']: {"sexe": p['sexe'], "poids": p['poids'], "id": p['id']} for p in rep.data} if rep.data else {}
+        except: return {}
 
 groupe_actif = st.session_state.groupe_selectionne
 profils = charger_profils(groupe_actif)
@@ -284,8 +301,8 @@ if not profils and groupe_actif == "Haggis et les cafards":
         supabase.table("profils").insert(defauts).execute()
         st.cache_data.clear()
         profils = charger_profils(groupe_actif)
-    except Exception as e:
-        print(f"Erreur d'insertion des profils : {e}")
+    except:
+        pass
 
 # --- CALCUL DES TAUX AVEC LOGIQUE DE SUIVI CONTINU ---
 @st.cache_data(ttl=2)
@@ -293,7 +310,6 @@ def charger_donnees(groupe, liste_pseudos):
     if not liste_pseudos:
         return [], []
     try:
-        # On extrait tout l'historique des membres de la table, peu importe où ils ont consommé
         boissons = supabase.table("drinks").select("*").in_("pseudo", liste_pseudos).order("created_at", desc=False).execute()
         repas = supabase.table("meals").select("*").in_("pseudo", liste_pseudos).order("created_at", desc=False).execute()
         return (boissons.data or []), (repas.data or [])
@@ -404,7 +420,6 @@ for nom, info in profils.items():
         
     stats_joueurs[nom] = {"max_ever": max_historique, "texte_jours": texte_jours, "jours_ecoules": jours_ecoules, "total_verres": len(verres_perso)}
 
-# Fonction utilitaire pour trouver le badge graphique
 def determiner_badge(score):
     if score >= 2.0: return "🧟‍♂️"
     elif score >= 1.5: return "🏴‍☠️"
@@ -432,7 +447,6 @@ def envoyer_alerte_whatsapp(pseudo, detail_conso, type_event="Boisson"):
 # --- 1. CONFIGURATION DE LA SALLE DE BAR ET TABLE ACTIVE ---
 with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
     
-    # CAS A : VUE SALLE DE BAR GLOBALE (RETOUR AUX CLICS PLOTLY)
     if st.session_state.salle_bar_active:
         st.markdown(f"### 🚪 Grand Salon des Tables")
         
@@ -451,17 +465,10 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 
             nom_affiche = t_name if len(t_name) < 18 else t_name[:15] + "..."
             
-            # Tracé de la table
             fig_salle.add_trace(go.Scatter(
-                x=[x_pos],
-                y=[y_pos],
+                x=[x_pos], y=[y_pos],
                 mode="markers+text",
-                marker=dict(
-                    symbol="square", 
-                    size=100, 
-                    color=fill_color, 
-                    line=dict(width=4, color=line_color)
-                ),
+                marker=dict(symbol="square", size=100, color=fill_color, line=dict(width=4, color=line_color)),
                 text=[f"<br><b>{nom_affiche}</b>"], 
                 textposition="bottom center",
                 textfont=dict(color="#FFFFFF", size=13, family="Arial"),
@@ -470,34 +477,23 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 hoverinfo="text"
             ))
             
-            # Émoji central
-            fig_salle.add_annotation(
-                x=x_pos, y=y_pos, text="🍻", showarrow=False, font=dict(size=30)
-            )
+            fig_salle.add_annotation(x=x_pos, y=y_pos, text="🍻", showarrow=False, font=dict(size=30))
 
         if num_tables < 10:
             x_add = (num_tables % 2) * 4.0
             y_add = -(num_tables // 2) * 4.0
             
             fig_salle.add_trace(go.Scatter(
-                x=[x_add],
-                y=[y_add],
+                x=[x_add], y=[y_add],
                 mode="markers+text",
-                marker=dict(
-                    symbol="square",
-                    size=100, 
-                    color="rgba(46, 204, 113, 0.1)", 
-                    line=dict(width=3, color="#2ecc71", dash="dash")
-                ),
+                marker=dict(symbol="square", size=100, color="rgba(46, 204, 113, 0.1)", line=dict(width=3, color="#2ecc71", dash="dash")),
                 text=[f"<br><b>➕ Créer</b>"],
                 textposition="bottom center",
                 textfont=dict(color="#2ecc71", size=13, family="Arial"),
                 customdata=["CREER_TABLE"],
                 hoverinfo="text"
             ))
-            fig_salle.add_annotation(
-                x=x_add, y=y_add, text="📝", showarrow=False, font=dict(size=30)
-            )
+            fig_salle.add_annotation(x=x_add, y=y_add, text="📝", showarrow=False, font=dict(size=30))
 
         max_rows = (num_tables // 2) + 1
         fig_salle.update_layout(
@@ -518,12 +514,11 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 if clicked_customdata == "CREER_TABLE":
                     st.session_state.afficher_creation_table = True
                 elif clicked_customdata in tables_existantes:
-                    # --- NOUVEAUTÉ : DÉMÉNAGEMENT LOGIQUE DE LA CHAISE DE LOLO ---
-                    if "Lolo" in profils:
-                        try:
-                            supabase.table("profils").update({"groupe": clicked_customdata}).eq("id", profils["Lolo"]["id"]).execute()
-                        except:
-                            pass
+                    # --- FIX : DÉMÉNAGEMENT SÉCURISÉ SANS RECOURS AU CONTEXTE LOCAL ---
+                    try:
+                        supabase.table("profils").update({"groupe": clicked_customdata}).eq("pseudo", "Lolo").execute()
+                    except:
+                        pass
                     
                     st.session_state.groupe_selectionne = clicked_customdata
                     st.session_state.salle_bar_active = False
@@ -543,29 +538,16 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     if st.button(TRAD[st.session_state.lang]["btn_rejoindre"], use_container_width=True):
                         if nom_nouvelle_table.strip():
                             nom_t = nom_nouvelle_table.strip()
-                            # --- NOUVEAUTÉ : ASSIGNATION DIRECTE DE LOLO A LA NOUVELLE TABLE SI EXISTANT ---
-                            if "Lolo" in profils:
-                                try:
-                                    supabase.table("profils").update({"groupe": nom_t}).eq("id", profils["Lolo"]["id"]).execute()
-                                except:
-                                    pass
-                            else:
-                                try:
-                                    supabase.table("profils").insert({
-                                        "pseudo": "Lolo",
-                                        "sexe": "Homme",
-                                        "poids": 75,
-                                        "groupe": nom_t
-                                    }).execute()
-                                except:
-                                    pass
+                            try:
+                                supabase.table("profils").update({"groupe": nom_t}).eq("pseudo", "Lolo").execute()
+                            except:
+                                pass
                             st.session_state.groupe_selectionne = nom_t
                             st.session_state.salle_bar_active = False
                             st.session_state.afficher_creation_table = False
                             st.cache_data.clear()
                             st.rerun()
 
-    # CAS B : VUE DE LA TABLE ACTIVE
     else:
         st.markdown(f"### 🍹 Table active : {groupe_actif}")
         if st.button(TRAD[st.session_state.lang]["btn_retour_bar"], use_container_width=True):
@@ -596,9 +578,7 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     x=[cx], y=[cy],
                     mode="markers+text",
                     marker=dict(size=45, color=couleur_j, line=dict(width=2, color="#FFFFFF")),
-                    text=[badge],
-                    textposition="middle center",
-                    textfont=dict(size=18),
+                    text=[badge], textposition="middle center", textfont=dict(size=18),
                     showlegend=False
                 ))
                 
@@ -618,10 +598,8 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
             fig_table.update_layout(
                 xaxis=dict(visible=False, range=[-3.5, 3.5], fixedrange=True),
                 yaxis=dict(visible=False, range=[-3.5, 3.5], fixedrange=True),
-                width=380, height=380,
-                margin=dict(l=5, r=5, t=5, b=5),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
+                width=380, height=380, margin=dict(l=5, r=5, t=5, b=5),
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 dragmode=False
             )
             
@@ -831,7 +809,16 @@ with st.expander(TRAD[st.session_state.lang]["sec7"], expanded=False):
         if profils:
             nom_a_supprimer = st.selectbox(TRAD[st.session_state.lang]["suppr_qui"], list(profils.keys()))
             if st.button(TRAD[st.session_state.lang]["btn_confirmer_suppr"]):
-                supabase.table("profils").delete().eq("id", profils[nom_a_supprimer]["id"]).execute()
+                # --- FIX : COMPORTEMENT INTELLIGENT POUR LOLO ---
+                if nom_a_supprimer == "Lolo":
+                    try:
+                        supabase.table("profils").update({"groupe": "Haggis et les cafards"}).eq("pseudo", "Lolo").execute()
+                    except:
+                        pass
+                    st.session_state.groupe_selectionne = "Haggis et les cafards"
+                    st.session_state.salle_bar_active = True
+                else:
+                    supabase.table("profils").delete().eq("id", profils[nom_a_supprimer]["id"]).execute()
                 st.cache_data.clear()
                 st.rerun()
 
@@ -863,11 +850,9 @@ with st.expander(TRAD[st.session_state.lang]["sec9"], expanded=False):
 # --- 10. VERSION & NOTES DE MISE A JOUR ---
 with st.expander(TRAD[st.session_state.lang]["sec10"], expanded=False):
     st.markdown("""
-    * 🚀 **Version 4.4**
-    * 🔄 **Suivi Physiologique Continu** : Ton profil et ton historique d'alcoolémie te suivent dynamiquement d'une table à l'autre en cours de soirée.
-    * 🧭 **Grand Salon Dynamique** : Cliquer sur une table déplace instantanément ta chaise virtuelle vers le nouveau groupe dans la base de données.
-    * 🛑 **Scroll Parfait sur la Table Active** : Table d'apéro fixée graphiquement (`staticPlot=True`) pour un défilement tactile fluide.
-    * 🪑 **Texte affiné** : Noms et alcoolémies décalés au maximum des badges pour éliminer toute superposition visuelle.
+    * 🚀 **Version 4.5**
+    * 🛡️ **Ancrage permanent du profil** : Protection de l'identifiant "Lolo". Cliquer sur supprimer détache simplement ton profil de la table actuelle pour un retour au salon en toute sécurité.
+    * ⚙️ **Ciblage d'identifiant direct** : Requêtes de transition de table optimisées par filtrage de chaîne unique ("Lolo") pour éviter les pertes de tracking.
     """)
 
 # --- 11. ZONE DE DANGER (GESTION BDD) ---
