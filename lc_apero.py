@@ -145,6 +145,8 @@ TRAD = {
         "danger_suppr_tout": "🗑️ SUPPRIMER ENTIÈREMENT LA TABLE",
         "btn_executer": "EXÉCUTER L'ACTION",
         "admin_pwd": "Mot de passe administrateur :",
+        "lien_direct": "🔗 Lien direct de l'application :",
+        "qr_caption": "Flashez-moi pour rejoindre !"
     },
     "EN": {
         "titre": "Party Tracker 🍹",
@@ -202,6 +204,8 @@ TRAD = {
         "danger_suppr_tout": "🗑️ COMPLETELY DELETE THE TABLE",
         "btn_executer": "EXECUTE ACTION",
         "admin_pwd": "Administrator password:",
+        "lien_direct": "🔗 Direct app link:",
+        "qr_caption": "Scan me to join!"
     }
 }
 
@@ -277,7 +281,7 @@ if st.session_state.groupe_selectionne not in tables_existantes:
 @st.cache_data(ttl=2)
 def charger_profils(groupe):
     try:
-        rep = supabase.table("profils").select("*").eq("groupe", group).execute()
+        rep = supabase.table("profils").select("*").eq("groupe", groupe).execute()
         return {p['pseudo']: {"sexe": p['sexe'], "poids": p['poids'], "id": p['id']} for p in rep.data} if rep.data else {}
     except:
         # Fallback direct en cas d'erreur ou d'asynchronisme
