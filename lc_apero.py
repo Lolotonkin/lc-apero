@@ -225,20 +225,6 @@ def init_supabase():
 supabase = init_supabase()
 URL_WEBHOOK_WHATSAPP = st.secrets.get("URL_WEBHOOK_WHATSAPP", "")
 
-# --- SECURITE ET ANCRAGE GLOBALE DE LOLO ---
-@st.cache_data(ttl=2)
-def assurer_existence_lolo():
-    try:
-        rep = supabase.table("profils").select("*").eq("pseudo", "Lolo").execute()
-        if not rep.data:
-            supabase.table("profils").insert({
-                "pseudo": "Lolo", "sexe": "Homme", "poids": 75, "groupe": "Haggis et les cafards"
-            }).execute()
-    except:
-        pass
-
-assurer_existence_lolo()
-
 # --- FONCTIONS DONNÉES ---
 @st.cache_data(ttl=2)
 def obtenir_toutes_les_tables():
@@ -256,7 +242,7 @@ def obtenir_toutes_les_tables():
 col_titre, col_lang = st.columns([3, 1])
 with col_titre:
     st.title(TRAD[st.session_state.lang]["titre"])
-    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.5 - Suivi Multi-tables</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #FF9800; margin-top: -15px;'>Version 4.6 - Suivi Multi-tables Libre</h5>", unsafe_allow_html=True)
 with col_lang:
     lang_choix = st.radio("Langue", ["🇫🇷 FR", "🇬🇧 EN"], horizontal=True, label_visibility="collapsed")
     st.session_state.lang = "FR" if "🇫🇷" in lang_choix else "EN"
@@ -518,12 +504,6 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                 if clicked_customdata == "CREER_TABLE":
                     st.session_state.afficher_creation_table = True
                 elif clicked_customdata in tables_existantes:
-                    # --- FIX : DÉMÉNAGEMENT SÉCURISÉ SANS RECOURS AU CONTEXTE LOCAL ---
-                    try:
-                        supabase.table("profils").update({"groupe": clicked_customdata}).eq("pseudo", "Lolo").execute()
-                    except:
-                        pass
-                    
                     st.session_state.groupe_selectionne = clicked_customdata
                     st.session_state.salle_bar_active = False
                     st.session_state.afficher_creation_table = False
@@ -542,10 +522,6 @@ with st.expander(TRAD[st.session_state.lang]["sec1"], expanded=True):
                     if st.button(TRAD[st.session_state.lang]["btn_rejoindre"], use_container_width=True):
                         if nom_nouvelle_table.strip():
                             nom_t = nom_nouvelle_table.strip()
-                            try:
-                                supabase.table("profils").update({"groupe": nom_t}).eq("pseudo", "Lolo").execute()
-                            except:
-                                pass
                             st.session_state.groupe_selectionne = nom_t
                             st.session_state.salle_bar_active = False
                             st.session_state.afficher_creation_table = False
@@ -645,22 +621,21 @@ with st.expander(TRAD[st.session_state.lang]["sec2"], expanded=False):
                 st.rerun()
         else:
             Qui = st.selectbox(TRAD[st.session_state.lang]["qui_consomme"], list(profils.keys()))
-            c1, c2, c3 = st.columns(3)
+            c1, c2 = st.columns(2)
             with c1:
-                boisson_nom = st.text_input("Nom du breuvage", value="Bière standard")
-            with c2:
                 vol = st.number_input(TRAD[st.session_state.lang]["vol_cl"], value=25.0, step=5.0)
-            with c3:
+            with c2:
                 deg = st.number_input(TRAD[st.session_state.lang]["deg_alc"], value=5.0, step=0.5)
                 
             alcool_g = vol * 10 * (deg / 100) * 0.8
             if st.button(TRAD[st.session_state.lang]["btn_enregistrer_verre"]):
+                nom_boisson = f"{vol}cl à {deg}%"
                 supabase.table("drinks").insert({
-                    "pseudo": Qui, "boisson": f"{boisson_nom} ({vol}cl, {deg}%)",
+                    "pseudo": Qui, "boisson": nom_boisson,
                     "alcool_g": alcool_g, "created_at": moment_actuel, "groupe": groupe_actif
                 }).execute()
                 st.cache_data.clear()
-                envoyer_alerte_whatsapp(Qui, f"{boisson_nom} ({vol}cl à {deg}%) à {affichage_heure}", type_event="Boisson")
+                envoyer_alerte_whatsapp(Qui, nom_boisson, type_event="Boisson")
                 st.success(f"✔️ Verre enregistré pour {Qui} ({alcool_g:.1f}g d'alcool pur) à {affichage_heure}")
                 st.rerun()
 
@@ -713,18 +688,21 @@ with st.expander(TRAD[st.session_state.lang]["sec4"], expanded=False):
     with col_leg3:
         st.markdown("* `👼` **Ange (Joyeux)** : > 0.0 g/L\n* `🚰` **À l'eau (Sobre)** : 0.0 g/L")
     st.markdown("---")
-    cols_stats = st.columns(len(profils) if profils else 1)
-    for i, (nom, stats) in enumerate(stats_joueurs.items()):
-        with cols_stats[i % len(cols_stats)]:
+    
+    if stats_joueurs:
+        for nom, stats in stats_joueurs.items():
             score = stats['max_ever']
-            badge_record = ""
-            if score == record_absolu_groupe and score > 0.01: 
-                badge_record += "👑 "
+            badge_record = "👑 " if (score == record_absolu_groupe and score > 0.01) else ""
             badge_record += determiner_badge(score)
-            st.markdown(f"**{nom}** {badge_record}")
-            st.markdown(f"Record: {score:.2f} g/L")
-            st.markdown(f"Total: {stats['total_verres']} verres")
-            st.markdown(f"Dernier: {stats['texte_jours']}")
+            
+            st.markdown(f"""
+            <div class='timeline-row'>
+                <span class='time-badge'>{score:.2f} g/L {badge_record}</span> 
+                <span class='pseudo-text'>{nom}</span> - <span class='details-text'>Total : {stats['total_verres']} verres | Dernier : {stats['texte_jours']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("Aucune donnée pour le Hall of Fame.")
 
 # --- 5. COURBES (ÉVOLUTION) ---
 with st.expander(TRAD[st.session_state.lang]["sec5"], expanded=False):
@@ -813,16 +791,7 @@ with st.expander(TRAD[st.session_state.lang]["sec7"], expanded=False):
         if profils:
             nom_a_supprimer = st.selectbox(TRAD[st.session_state.lang]["suppr_qui"], list(profils.keys()))
             if st.button(TRAD[st.session_state.lang]["btn_confirmer_suppr"]):
-                # --- FIX : COMPORTEMENT INTELLIGENT POUR LOLO ---
-                if nom_a_supprimer == "Lolo":
-                    try:
-                        supabase.table("profils").update({"groupe": "Haggis et les cafards"}).eq("pseudo", "Lolo").execute()
-                    except:
-                        pass
-                    st.session_state.groupe_selectionne = "Haggis et les cafards"
-                    st.session_state.salle_bar_active = True
-                else:
-                    supabase.table("profils").delete().eq("id", profils[nom_a_supprimer]["id"]).execute()
+                supabase.table("profils").delete().eq("id", profils[nom_a_supprimer]["id"]).execute()
                 st.cache_data.clear()
                 st.rerun()
 
@@ -854,9 +823,10 @@ with st.expander(TRAD[st.session_state.lang]["sec9"], expanded=False):
 # --- 10. VERSION & NOTES DE MISE A JOUR ---
 with st.expander(TRAD[st.session_state.lang]["sec10"], expanded=False):
     st.markdown("""
-    * 🚀 **Version 4.5**
-    * 🛡️ **Ancrage permanent du profil** : Protection de l'identifiant "Lolo". Cliquer sur supprimer détache simplement ton profil de la table actuelle pour un retour au salon en toute sécurité.
-    * ⚙️ **Ciblage d'identifiant direct** : Requêtes de transition de table optimisées par filtrage de chaîne unique ("Lolo") pour éviter les pertes de tracking.
+    * 🚀 **Version 4.6**
+    * 🔓 **Libération du profil :** On peut maintenant supprimer un profil de n'importe quelle table d'un simple clic sans bloquer le système.
+    * 🎨 **Refonte Hall of Fame :** Alignement parfait du style visuel avec l'historique (Timeline CSS).
+    * ⚡ **Saisie simplifiée :** Suppression de l'étape de nommage de la boisson pour un enregistrement instantané Volume/Degré.
     """)
 
 # --- 11. ZONE DE DANGER (GESTION BDD) ---
