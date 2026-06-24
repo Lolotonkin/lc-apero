@@ -734,20 +734,56 @@ with st.expander(TRAD[st.session_state.lang]["sec6"], expanded=False):
     if not df_verres_recent.empty:
         df_verres_recent['icone'] = '🍹'
         df_verres_recent['details'] = df_verres_recent['boisson']
+        df_verres_recent['table_source'] = 'drinks'
     else:
-        df_verres_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'icone', 'details'])
+        df_verres_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'icone', 'details', 'table_source'])
         
     df_repas_recent = df_repas[df_repas['created_at'] >= (maintenant_arrondi - pd.Timedelta(hours=24))].copy() if not df_repas.empty else pd.DataFrame()
     if not df_repas_recent.empty:
         df_repas_recent['icone'] = df_repas_recent['type'].apply(lambda x: '🥨' if x == 'Grignotage' else '🍽️')
         df_repas_recent['details'] = df_repas_recent['type'].apply(lambda x: 'A grignoté' if x == 'Grignotage' else 'A pris un repas complet')
+        df_repas_recent['table_source'] = 'meals'
     else:
-        df_repas_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'icone', 'details'])
+        df_repas_recent = pd.DataFrame(columns=['id', 'pseudo', 'created_at', 'icone', 'details', 'table_source'])
         
-    df_timeline = pd.concat([df_verres_recent[['id', 'pseudo', 'created_at', 'icone', 'details']], df_repas_recent[['id', 'pseudo', 'created_at', 'icone', 'details']]], ignore_index=True)
+    df_timeline = pd.concat([df_verres_recent[['id', 'pseudo', 'created_at', 'icone', 'details', 'table_source']], 
+                             df_repas_recent[['id', 'pseudo', 'created_at', 'icone', 'details', 'table_source']]], 
+                             ignore_index=True)
     
     if not df_timeline.empty:
         df_timeline = df_timeline.sort_values(by='created_at', ascending=False)
+        
+        # --- BLOC DE SUPPRESSION D'UNE ERREUR ---
+        st.markdown("#### 🗑️ Annuler une erreur" if st.session_state.lang == "FR" else "#### 🗑️ Delete a mistake")
+        options_suppr = []
+        for _, row in df_timeline.iterrows():
+            h_str = row['created_at'].strftime("%H:%M")
+            label = f"{h_str} - {row['pseudo']} - {row['details']} {row['icone']}"
+            options_suppr.append((row['id'], row['table_source'], label))
+            
+        col_sel, col_btn = st.columns([3, 1])
+        with col_sel:
+            entry_to_delete = st.selectbox(
+                "Sélectionnez l'entrée à annuler :" if st.session_state.lang == "FR" else "Select entry to delete:", 
+                options_suppr, 
+                format_func=lambda x: x[2], 
+                label_visibility="collapsed"
+            )
+        with col_btn:
+            if st.button("❌ Supprimer" if st.session_state.lang == "FR" else "❌ Delete", use_container_width=True):
+                if entry_to_delete:
+                    id_del = entry_to_delete[0]
+                    table_del = entry_to_delete[1]
+                    try:
+                        supabase.table(table_del).delete().eq("id", id_del).execute()
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erreur lors de la suppression : {e}" if st.session_state.lang == "FR" else f"Error: {e}")
+                        
+        st.markdown("---")
+        # --- FIN DU BLOC DE SUPPRESSION ---
+
         for _, row in df_timeline.iterrows():
             h_str = row['created_at'].strftime("%H:%M")
             st.markdown(f"""
