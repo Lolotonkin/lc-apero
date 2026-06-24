@@ -753,45 +753,29 @@ with st.expander(TRAD[st.session_state.lang]["sec6"], expanded=False):
     if not df_timeline.empty:
         df_timeline = df_timeline.sort_values(by='created_at', ascending=False)
         
-        # --- BLOC DE SUPPRESSION D'UNE ERREUR ---
-        st.markdown("#### 🗑️ Annuler une erreur" if st.session_state.lang == "FR" else "#### 🗑️ Delete a mistake")
-        options_suppr = []
-        for _, row in df_timeline.iterrows():
+        for index, row in df_timeline.iterrows():
             h_str = row['created_at'].strftime("%H:%M")
-            label = f"{h_str} - {row['pseudo']} - {row['details']} {row['icone']}"
-            options_suppr.append((row['id'], row['table_source'], label))
             
-        col_sel, col_btn = st.columns([3, 1])
-        with col_sel:
-            entry_to_delete = st.selectbox(
-                "Sélectionnez l'entrée à annuler :" if st.session_state.lang == "FR" else "Select entry to delete:", 
-                options_suppr, 
-                format_func=lambda x: x[2], 
-                label_visibility="collapsed"
-            )
-        with col_btn:
-            if st.button("❌ Supprimer" if st.session_state.lang == "FR" else "❌ Delete", use_container_width=True):
-                if entry_to_delete:
-                    id_del = entry_to_delete[0]
-                    table_del = entry_to_delete[1]
+            # Utilisation de colonnes pour mettre le texte à gauche et le bouton à droite
+            col_texte, col_btn = st.columns([5, 1], vertical_alignment="center")
+            
+            with col_texte:
+                st.markdown(f"""
+                <div class='timeline-row'>
+                    <span class='time-badge'>{h_str} {row['icone']}</span> 
+                    <span class='pseudo-text'>{row['pseudo']}</span> - <span class='details-text'>{row['details']}</span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with col_btn:
+                # Le bouton utilise une clé unique basée sur la table et l'ID
+                if st.button("❌", key=f"del_{row['table_source']}_{row['id']}", help="Supprimer cette entrée"):
                     try:
-                        supabase.table(table_del).delete().eq("id", id_del).execute()
+                        supabase.table(row['table_source']).delete().eq("id", row['id']).execute()
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erreur lors de la suppression : {e}" if st.session_state.lang == "FR" else f"Error: {e}")
-                        
-        st.markdown("---")
-        # --- FIN DU BLOC DE SUPPRESSION ---
-
-        for _, row in df_timeline.iterrows():
-            h_str = row['created_at'].strftime("%H:%M")
-            st.markdown(f"""
-            <div class='timeline-row'>
-                <span class='time-badge'>{h_str} {row['icone']}</span> 
-                <span class='pseudo-text'>{row['pseudo']}</span> - <span class='details-text'>{row['details']}</span>
-            </div>
-            """, unsafe_allow_html=True)
+                        st.error(f"Erreur : {e}" if st.session_state.lang == "FR" else f"Error: {e}")
     else:
         st.info(TRAD[st.session_state.lang]["txt_historique_vide"])
 
